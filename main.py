@@ -559,8 +559,10 @@ class Map:
         print('{} animals have been killed by {} predation relationships, e.g.'.format(len(killed), len(predation_list)))
         num_to_show = min(len(predation_list), 5)
         if num_to_show > 0:
+            predation_strings = []
             for i in range(num_to_show):
-                print(predation_list[i][0])
+                predation_strings.append(predation_list[i][0])
+            print(', '.join(predation_strings))
         self.deaths = []
 
 full_map = True
