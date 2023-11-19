@@ -2,7 +2,7 @@ import math
 import random
 import time
 
-random.seed('darwin17')
+random.seed('darwinsmalllaptop57')
 
 
 meat_nutrition = 1
@@ -79,7 +79,7 @@ def gen_animal():
             'size': calc_size(speed, weapons, armor, edibles, camoflague)
         })
 
-while len(animals_to_make) < 120:
+while len(animals_to_make) < 200:
     gen_animal()
 
 def create_basic_herbivores(edibles, name_str): # make a locust, a speed invincible, an armor invincible, etc.
@@ -88,50 +88,54 @@ def create_basic_herbivores(edibles, name_str): # make a locust, a speed invinci
     animals_to_make.append({'speed':4, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':False, 'name':'{} Half-Speeder'.format(name_str), 'size': calc_size(4,0,0,edibles,False)})
     animals_to_make.append({'speed':1, 'weapons':2, 'armor':5, 'edibles':edibles, 'camoflague':False, 'name':'{} Armor'.format(name_str), 'size': calc_size(1,2,5,edibles,False)})
     animals_to_make.append({'speed':1, 'weapons':1, 'armor':3, 'edibles':edibles, 'camoflague':False, 'name':'{} Half-Armor'.format(name_str), 'size': calc_size(1,1,3,edibles,False)})
-    animals_to_make.append({'speed':1, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Camo Locust'.format(name_str), 'size': calc_size(1,0,0,edibles,True)})
-
-
+    animals_to_make.append({'speed':3, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Camo Locust'.format(name_str), 'size': calc_size(3,0,0,edibles,True)})
+    if 0 not in edibles:
+        edibles = [0]+edibles
+    animals_to_make.append({'speed':2, 'weapons':1, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Flytrap'.format(name_str), 'size': calc_size(2,1,0,edibles,True)})
 
 for i in range(global_num_foods):
     create_basic_herbivores([i], global_food_details['names'][i])
 
-create_basic_herbivores([3,4,5], 'Everything')
+for i in range(2,11):
+    animals_to_make.append({'speed':1, 'weapons':i, 'armor':0, 'edibles':[0], 'camoflague':True, 'name':'Lurker {}'.format(i), 'size': calc_size(1,i,0,[0],True)})
+
+for i in range(1,8):
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,1] if i <= 6 else [0], 'camoflague':True, 'name':'Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,1] if i <= 6 else [0],True)})
+
+
+create_basic_herbivores([3,4,5], 'Multiplant')
 
 animals_to_make.sort(key=lambda x:x['speed'])
 animals_to_make.sort(key=lambda x:x['armor'])
 animals_to_make.sort(key=lambda x:x['weapons'])
 animals_to_make.sort(key=lambda x:x['size'])
 
-global_animal_details = {
-    'names' : [],
-    'speeds' : [],
-    'sizes' : [],
-    'edibles' : [],
-    'weapons' : [],
-    'armor' : [],
-    'camoflague' : [],
-    'poison': [],
-    'antipoison' : [],
-    'sizes' : []
-}
+global_animal_names = []
+global_animal_speeds = []
+global_animal_sizes = []
+global_animal_edibles = []
+global_animal_weapons = []
+global_animal_armor = []
+global_animal_camoflague = []
+global_animal_sizes = []
 
 for a in animals_to_make:
-    global_animal_details['speeds'].append(a['speed'])
-    global_animal_details['weapons'].append(a['weapons'])
-    global_animal_details['armor'].append(a['armor'])
-    global_animal_details['edibles'].append(a['edibles'])
-    global_animal_details['camoflague'].append(a['camoflague'])
-    global_animal_details['names'].append(a['name'])
-    global_animal_details['sizes'].append(calc_size(a['speed'], a['weapons'], a['armor'], a['edibles'], a['camoflague']))
+    global_animal_speeds.append(a['speed'])
+    global_animal_weapons.append(a['weapons'])
+    global_animal_armor.append(a['armor'])
+    global_animal_edibles.append(a['edibles'])
+    global_animal_camoflague.append(a['camoflague'])
+    global_animal_names.append(a['name'])
+    global_animal_sizes.append(calc_size(a['speed'], a['weapons'], a['armor'], a['edibles'], a['camoflague']))
 
-global_num_animals = len(global_animal_details['names'])
+global_num_animals = len(global_animal_names)
 
 global_food_chain = []
 for a1 in range(global_num_animals):
     food_map = []
     for a2 in range(global_num_animals):
         can_kill = False
-        if (global_animal_details['weapons'][a1] > ((global_animal_details['weapons'][a2])+ global_animal_details['armor'][a2])):
+        if (global_animal_weapons[a1] > ((global_animal_weapons[a2])+ global_animal_armor[a2])):
             can_kill = True
         food_map.append(can_kill)
     global_food_chain.append(food_map)
@@ -141,7 +145,7 @@ for a1 in range(global_num_animals):
     chase_map = []
     for a2 in range(global_num_animals):
         can_kill = global_food_chain[a1][a2]
-        if can_kill and global_animal_details['speeds'][a1] > global_animal_details['speeds'][a2]:
+        if can_kill and global_animal_speeds[a1] > global_animal_speeds[a2]:
             chase_map.append(True)
         else:
             chase_map.append(False)
@@ -201,25 +205,27 @@ class Map:
             'species_id' : species_id,
             'row': row,
             'col': col,
-            'size': global_animal_details['sizes'][species_id],
-            'speed': global_animal_details['speeds'][species_id],
-            'camoflague' : global_animal_details['camoflague'][species_id],
-            'reserves' : global_animal_details['sizes'][species_id]*starting_reserves_mult,
+            'size': global_animal_sizes[species_id],
+            'speed': global_animal_speeds[species_id],
+            'camoflague' : global_animal_camoflague[species_id],
+            'weapons' : global_animal_weapons[species_id],
+            'reserves' : global_animal_sizes[species_id]*starting_reserves_mult,
             'has_been_killed' : False, # for consistency we do not remove it from the array until the phase is over, but want to make sure it is not eaten twice and does not act later in that round.
         })
-
-
 
     def dist_between_squares(self, s1, s2):
         return(abs(s1[0]-s2[0]) + abs(s1[1]-s2[1]))
 
+    def squared_dist_between_squares(self, s1, s2):
+        return((s1[0]-s2[0])**2 + (s1[1]-s2[1])**2)
+    
     def shortest_dist_to_threat(self, square, threats):
-        dists = [self.dist_between_squares(square, t) for t in threats]
+        dists = [self.squared_dist_between_squares(square, t) for t in threats] #TODO: decide on this one!
         return(min(dists))
 
     def plant_eaten_in_square(self,species_id, square):
         foods_present = self.foods_map[square[0]][square[1]]
-        foods_edible = global_animal_details['edibles'][species_id]
+        foods_edible = global_animal_edibles[species_id]
         foods_both = [f for f in foods_edible if foods_present[f] > 0]
         nutritions_available = [global_food_details['nutritions'][f] for f in foods_both]
         if( len(nutritions_available) ):
@@ -233,10 +239,10 @@ class Map:
     def prey_eaten_in_square(self, species_id, square):
         animals_present = self.animals_map[square[0]][square[1]]
         prey_available = [a for a in animals_present if global_food_chain[species_id][a] == True]
-        nutritions_available = [global_animal_details['sizes'][a] for a in prey_available]
+        nutritions_available = [global_animal_sizes[a] for a in prey_available]
         if( len(nutritions_available) ):
             nutrition_gained = max(nutritions_available)
-            prey_eaten = random.choice([p for p in prey_available if global_animal_details['sizes'][p] == nutrition_gained])
+            prey_eaten = random.choice([p for p in prey_available if global_animal_sizes[p] == nutrition_gained])
         else:
             nutrition_gained = 0
             prey_eaten = None
@@ -287,16 +293,24 @@ class Map:
         animals_present = self.animals_map[square[0]][square[1]]
         predators_present = [a for a in animals_present if global_food_chain[a][species_id] == True]
         if can_see_camo==False:
-            predators_present = [p for p in predators_present if global_animal_details['camoflague'][p] == False]
+            predators_present = [p for p in predators_present if global_animal_camoflague[p] == False]
 
         if len(predators_present):
             return(True)
         else:
             return(False)
 
+    def best_food_in_square(self, species_id, square):
+        best_food = 0
+        foods_edible = global_animal_edibles[species_id]
+        for f in foods_edible:
+            if self.foods_map[square[0]][square[1]][f] > 0:
+                best_food = max(best_food, global_food_details['nutritions'][f])
+        return(best_food)
+    
     def food_amount_in_square(self, species_id, square):
         food_amount = 0
-        foods_edible = global_animal_details['edibles'][species_id]
+        foods_edible = global_animal_edibles[species_id]
         for f in foods_edible:
             food_amount = food_amount + (self.foods_map[square[0]][square[1]][f] * global_food_details['nutritions'][f])
         return(food_amount)
@@ -308,12 +322,12 @@ class Map:
         else:           # if they are adjacent, we just must be able to eat them
             prey_present = [a for a in animals_present if global_food_chain[species_id][a] == True]
         if can_see_camo==False:
-            prey_present = [p for p in prey_present if global_animal_details['camoflague'][p] == False]
+            prey_present = [p for p in prey_present if global_animal_camoflague[p] == False]
         return(prey_present)
 
     def prey_amount_in_square(self, species_id, square, can_see_camo, must_chase=False):
         prey_present = self.prey_list_in_square(species_id, square, can_see_camo, must_chase)
-        return(sum([global_animal_details['sizes'][a] for a in prey_present]))
+        return(sum([global_animal_sizes[a] for a in prey_present]))
 
     def kill_animal(self, animal, killed_by):
         self.animals_map[animal['row']][animal['col']].remove(animal['species_id'])
@@ -334,6 +348,7 @@ class Map:
 
     def exec_actions(self):
         random.shuffle(self.animals)
+        self.animals.sort(key = lambda x: x['weapons']) # avoid catching same-speed via turn order shenanigans
         self.animals.sort(key = lambda x: x['size']) # avoid catching same-speed via turn order shenanigans
         self.animals.sort(key = lambda x: x['speed'], reverse=True)
         speeds_to_act = speeds_in_round[self.round_no%max_speed]
@@ -353,15 +368,12 @@ class Map:
                 random.shuffle(neighbor_squares) # order will be used for deciding where to move to later
                 random.shuffle(two_away_squares)
 
-                possible_moves = [current_square] + neighbor_squares
+                possible_moves = [current_square] + neighbor_squares # note that current square is in front
                 visible_squares = possible_moves + two_away_squares
+
                 # threats get calced separately because of camo
-                if global_jungle_flag == True:
-                    adj_threats = [s for s in possible_moves if self.looks_dangerous_in_square(a['species_id'], s, can_see_camo=False)]
-                    two_away_threats = []
-                else:
-                    adj_threats = [s for s in possible_moves if self.looks_dangerous_in_square(a['species_id'], s, can_see_camo=True)]
-                    two_away_threats = [s for s in two_away_squares if self.looks_dangerous_in_square(a['species_id'], s, can_see_camo=False)]
+                adj_threats = [s for s in possible_moves if self.looks_dangerous_in_square(a['species_id'], s, can_see_camo=True)]
+                two_away_threats = [s for s in two_away_squares if self.looks_dangerous_in_square(a['species_id'], s, can_see_camo=False)]
                 threats = adj_threats + two_away_threats
 
                 if len(threats):
@@ -373,10 +385,10 @@ class Map:
                 possible_moves = [[square, self.prey_amount_in_square(a['species_id'], square, can_see_camo=True)] for square in possible_moves]
                 best = max([x[1] for x in possible_moves])
                 if best == 0:
-                    possible_moves = [[x[0], self.food_amount_in_square(a['species_id'], x[0])] for x in possible_moves]
+                    possible_moves = [[x[0], self.best_food_in_square(a['species_id'], x[0])] for x in possible_moves]
                     best = max([x[1] for x in possible_moves])
 
-                if best == 0 and global_jungle_flag == False: # we see no food or prey we can get now
+                if best == 0: # we see no food or prey we can get now
                     #distant_targets = [[square, self.food_amount_in_square(a['species_id'], square)] for square in two_away_squares]
                     #best = max([x[1] for x in distant_targets])
                     # if no food 2 away we check for prey, but prey 2 away is prioritized below food because it can get away and camo animals won't chase
@@ -384,11 +396,16 @@ class Map:
                     distant_targets = [[square, self.prey_amount_in_square(a['species_id'], square, can_see_camo=False, must_chase=True)] for square in two_away_squares]
                     best = max([x[1] for x in distant_targets])
 
-                    best_target_hits = [x[0] for x in distant_targets if x[1] == best]
-                    best_target = best_target_hits[0]
-                    possible_moves = [[x[0], self.dist_between_squares(x[0], best_target)] for x in possible_moves]
-                    best_dist = min([x[1] for x in possible_moves])
-                    possible_moves = [x[0] for x in possible_moves if x[1] == best_dist]
+                    if best > 0:
+                        best_target_hits = [x[0] for x in distant_targets if x[1] == best]
+                        best_target = best_target_hits[0]
+                        possible_moves = [[x[0], self.dist_between_squares(x[0], best_target)] for x in possible_moves]
+                        best_dist = min([x[1] for x in possible_moves])
+                        possible_moves = [x[0] for x in possible_moves if x[1] == best_dist]
+                    else:
+                        possible_moves = [x[0] for x in possible_moves]
+                        possible_moves.reverse() # current square should go last so we will always move if we are in the middle of nowhere with nothing to eat
+                        
                     move_to = possible_moves[0]
                 else:
                     possible_moves = [x[0] for x in possible_moves if x[1] == best]
@@ -400,15 +417,15 @@ class Map:
                 # if there is prey in our new square, we kill the biggest
                 prey_list = self.prey_list_in_square(a['species_id'], move_to, can_see_camo=True)
                 if len(prey_list):
-                    biggest_size = max([global_animal_details['sizes'][p] for p in prey_list])
-                    biggest_prey = [p for p in prey_list if global_animal_details['sizes'][p] == biggest_size]
+                    biggest_size = max([global_animal_sizes[p] for p in prey_list])
+                    biggest_prey = [p for p in prey_list if global_animal_sizes[p] == biggest_size]
                     prey_species = random.choice(biggest_prey)
                     target_animals = [a for a in self.animals if a['row'] == move_to[0] and a['col'] == move_to[1] and a['species_id'] == prey_species and  a['has_been_killed'] == False]
                     target_animal = random.choice(target_animals)
                     self.kill_animal(target_animal, a['species_id'])
 
                 # if there is food in our new square, we eat one of the best
-                foods_edible = global_animal_details['edibles'][a['species_id']]
+                foods_edible = global_animal_edibles[a['species_id']]
                 foods_present = [f for f in foods_edible if self.foods_map[move_to[0]][move_to[1]][f] > 0]
                 if len(foods_present):
                     best_nutrition = max([global_food_details['nutritions'][f] for f in foods_present])
@@ -449,7 +466,7 @@ class Map:
         f.write(log_string)
 
     def get_animal_counts(self):
-        counts = [0 for n in global_animal_details['names']]
+        counts = [0 for n in global_animal_names]
         for a in self.animals:
             counts[a['species_id']] = counts[a['species_id']] + 1
         return(counts)
@@ -460,7 +477,7 @@ class Map:
 
     def setup_logs(self):
         log_row = ['Generation']
-        for n in global_animal_details['names']:
+        for n in global_animal_names:
             log_row.append(n)
         self.log_row(log_row, mode='w')
 
@@ -502,7 +519,6 @@ class Map:
         for row in out:
             print([e + (' ' * (max_len - len(e))) for e in row])
 
-
     def total_nutrition_per_round(self):
         square_nutrition = 0
         for food in self.food_abundances:
@@ -518,7 +534,7 @@ class Map:
         counts = self.get_animal_counts()
         total_rate = 0
         for i in range(global_num_animals):
-            total_rate = total_rate + (counts[i] * global_animal_details['sizes'][i] * global_animal_details['speeds'][i] * metabolic_rate / max_speed)
+            total_rate = total_rate + (counts[i] * global_animal_sizes[i] * global_animal_speeds[i] * metabolic_rate / max_speed)
         return(total_rate)
 
     def total_food_amount(self, food_id):
@@ -533,12 +549,12 @@ class Map:
             my_map.round_no,
             elapsed,
             len([i for i in counts if i > 0]),
-            len([i for i in counts if i >= 5]),
+            len([i for i in counts if i >= 10]),
             100 * my_map.total_nutrition_rate() / my_map.total_nutrition_per_round()
         ))
         for i in range(global_num_animals):
-            if counts[i] >= 5:
-                print('{} ({}) has a population of {}'.format(i, global_animal_details['names'][i], counts[i]))
+            if counts[i] >= 10:
+                print('{} ({}) has a population of {}'.format(i, global_animal_names[i], counts[i]))
         food_strings = ['{} density is {:.4f}'.format(global_food_details['names'][f], self.total_food_amount(f) / (self.height * self.width)) for f in range(global_num_foods)]
         print(', '.join(food_strings))
 
@@ -566,22 +582,20 @@ class Map:
         self.deaths = []
 
 full_map = True
-global_jungle_flag = False
 if full_map:
-    my_map = Map(600,600,[['Grass',0.002],['Fruit',0.0002], ['Seeds',0.001]]) #standard
+    my_map = Map(700,700,[['Grass',0.002],['Fruit',0.0002], ['Seeds',0.001]]) #standard
     airdrop_rates = [ 0.01, 0.10, 0.17, 0.24, 0.05, 0.13]
-    #my_map = Map(600,600,[['Grass',0.001],['Fruit',0.00001], ['Seeds',0.001]]) #tundra
+    #my_map = Map(600,600,[['Grass',0.001],['Fruit',0.00004], ['Seeds',0.0008]]) #tundra
     #airdrop_rates = [ 0.005, 0.08, 0.10, 0.33, 0.05, 0.6]
-    #my_map = Map(400,400,[['Grass',0.008],['Fruit',0.001], ['Seeds',0.001]]) #jungle
-    #airdrop_rates = [ 0.04, 1, 2, 2, 0.15, 1]
-    #global_jungle_flag = True
+    #my_map = Map(500,500,[['Grass',0.003],['Fruit',0.001], ['Seeds',0.0012]]) #jungle
+    #airdrop_rates = [ 0.06, 0.5, 0.8, 0.8, 0.15, 0.6]
     # empirically derived starting foods by poking at steady-state equilibria, trying to make sure our start isn't too un-smooth
     for i in range(6):
         my_map.airdrop_food(i, airdrop_rates[i])
 
     nutrition_per_species = my_map.total_nutrition_per_round() / global_num_animals
     for i in range(global_num_animals):
-        num_to_make = math.floor(nutrition_per_species / (global_animal_details['sizes'][i] * (global_animal_details['speeds'][i]/max_speed) * metabolic_rate))
+        num_to_make = math.floor(nutrition_per_species / (global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate))
         for j in range(num_to_make):
             my_map.add_animal(i)
 
@@ -590,7 +604,7 @@ if full_map:
         my_map.exec_round()
         if my_map.round_no < 10000:
             for i in range(global_num_animals):
-                chance_to_make = nutrition_per_species / (20000*global_animal_details['sizes'][i] * (global_animal_details['speeds'][i]/max_speed) * metabolic_rate)
+                chance_to_make = nutrition_per_species / (20000*global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate)
                 if random.random() < chance_to_make:
                     my_map.add_animal(i)
         if my_map.round_no%100 == 0:
