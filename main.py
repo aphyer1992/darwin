@@ -2,7 +2,7 @@ import math
 import random
 import time
 
-random.seed('darwinsmalllaptop58')
+random.seed('darwinsmalllaptop59')
 
 
 meat_nutrition = 1
@@ -13,6 +13,12 @@ global_food_details = {
     'nutritions' : [ meat_nutrition, bone_nutrition, offal_nutrition, 0.3, 0.7, 0.15 ],
     'costs' : [ 1, 4, 2, 5, 4, 1 ],
 }
+
+biome_food_densities = {
+    'Tundra' : [['Grass',0.001],['Fruit',0.00004], ['Seeds',0.0008]],
+    'Plains' : [['Grass',0.002],['Fruit',0.0002], ['Seeds',0.001]],
+    'Jungle' : [['Grass',0.003],['Fruit',0.001], ['Seeds',0.0012]],
+    }
 
 max_speed = 10
 starting_reserves_mult = 0.5
@@ -511,8 +517,13 @@ class Map:
         max_len = 0
         for i in range(size):
             row = []
+            rownum = corner_square[0] + i
             for j in range(size):
-                contents = self.render_square(self.add_coords(corner_square,[i,j]))
+                colnum = corner_square[1]+j
+                if rownum >= self.height or rownum < 0 or colnum >= self.width or colnum < 0:
+                    contents = 'X'
+                else:
+                    contents = self.render_square(self.add_coords(corner_square,[i,j]))
                 row.append(contents)
                 max_len = max(max_len, len(contents))
             out.append(row)
@@ -584,6 +595,17 @@ class Map:
                 predation_strings.append(predation_list[i][0])
             print(', '.join(predation_strings))
         self.deaths = []
+        
+    def focus_animal(self, species_id):
+        f = [a for a in self.animals if a['species_id'] == species_id][0]
+        for a in self.animals:
+            if a['species_id'] == species_id and a['row'] == f['row'] and a['col'] == f['col']:
+                a['focus'] = True
+ 
+    def show_focus(self):
+        f = [a for a in self.animals if 'focus' in a.keys()]
+        assert(len(f)==1)
+        self.show_area([f[0]['row']-3, f[0]['col']-3], 7)
 
 full_map = True
 if full_map:
