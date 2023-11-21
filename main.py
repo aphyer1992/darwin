@@ -2,7 +2,7 @@ import math
 import random
 import time
 
-random.seed('darwinsmalllaptop57')
+random.seed('darwinsmalllaptop58')
 
 
 meat_nutrition = 1
@@ -34,7 +34,7 @@ def triangle(x):
 def calc_size(speed, weapons, armor, edibles, camoflague):
     size = (0.5*triangle(speed)) + triangle(weapons) + (0.5 * triangle(armor)) + sum([global_food_details['costs'][x] for x in edibles])
     if camoflague:
-        size = size * 1.5
+        size = size * 2
     return(size)
 
 def gen_animal():
@@ -42,9 +42,12 @@ def gen_animal():
     speed = max(1, min(max_speed, speed))
     weapons = random.choice(range(-4,10))
     weapons = max(0, min(10, weapons))
-    defense = random.choice(range(-4,10))
+    defense = random.choice(range(-1,10))
     defense = min(10,defense)
     armor = max(0, defense - (2*weapons))
+    while armor > 2*(weapons + 1):
+        armor = armor - 1
+        weapons = weapons + 1
     camoflague = True if random.random() < 0.3 else False
     edibles = []
     for i in range(global_num_foods):
@@ -88,7 +91,8 @@ def create_basic_herbivores(edibles, name_str): # make a locust, a speed invinci
     animals_to_make.append({'speed':4, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':False, 'name':'{} Half-Speeder'.format(name_str), 'size': calc_size(4,0,0,edibles,False)})
     animals_to_make.append({'speed':1, 'weapons':2, 'armor':5, 'edibles':edibles, 'camoflague':False, 'name':'{} Armor'.format(name_str), 'size': calc_size(1,2,5,edibles,False)})
     animals_to_make.append({'speed':1, 'weapons':1, 'armor':3, 'edibles':edibles, 'camoflague':False, 'name':'{} Half-Armor'.format(name_str), 'size': calc_size(1,1,3,edibles,False)})
-    animals_to_make.append({'speed':3, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Camo Locust'.format(name_str), 'size': calc_size(3,0,0,edibles,True)})
+    animals_to_make.append({'speed':3, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Fast Camo Locust'.format(name_str), 'size': calc_size(3,0,0,edibles,True)})
+    animals_to_make.append({'speed':1, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Slow Camo Locust'.format(name_str), 'size': calc_size(1,0,0,edibles,True)})
     if 0 not in edibles:
         edibles = [0]+edibles
     animals_to_make.append({'speed':2, 'weapons':1, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Flytrap'.format(name_str), 'size': calc_size(2,1,0,edibles,True)})
