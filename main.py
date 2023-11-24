@@ -15,9 +15,15 @@ global_food_details = {
 }
 
 biome_food_densities = {
-    'Tundra' : [['Grass',0.001],['Fruit',0.00004], ['Seeds',0.0008]],
-    'Plains' : [['Grass',0.002],['Fruit',0.0002], ['Seeds',0.001]],
-    'Jungle' : [['Grass',0.003],['Fruit',0.001], ['Seeds',0.0012]],
+    'Tundra' : [ 0, 0, 0, 0.001, 0.00004, 0.0008 ],
+    'Plains' : [ 0, 0, 0, 0.002, 0.0002, 0.001 ],
+    'Jungle' : [ 0, 0, 0, 0.003, 0.001, 0.0012 ],
+    }
+
+biome_airdrop_densities = { #probably change these?
+    'Tundra' : [ 0.01, 0.10, 0.17, 0.24, 0.05, 0.13],
+    'Plains' : [ 0.01, 0.10, 0.17, 0.24, 0.05, 0.13],
+    'Jungle' : [ 0.01, 0.10, 0.17, 0.24, 0.05, 0.13],
     }
 
 max_speed = 10
@@ -180,10 +186,19 @@ def add_coords(coords, move):
     return([coords[0] + move[0], coords[1] + move[1]])
 
 class Map:
-    def __init__(self, width, height, food_abundances):
-        self.width = width
-        self.height = height
-        self.food_abundances = [[global_food_details['names'].index(f[0]), f[1]] for f in food_abundances]
+    def __init__(self, biome_map, biome_width, biome_height, gate_width):
+        self.biome_width = biome_width
+        self.biome_height = biome_height
+        self.biome_map = biome_map
+        self.biome_map_height = len(self.biome_map)
+        self.biome_map_width = len(self.biome_map[0])
+        self.height = self.biome_height * self.biome_map_height
+        self.width = self.biome_width * self.biome_map_width
+        self.gate_width = gate_width
+        self.gate_row_min = math.floor(self.biome_height / 2) - math.floor(self.gate_width / 2)
+        self.gate_row_max = math.floor(self.biome_height / 2) + math.ceil(self.gate_width / 2) - 1
+        self.gate_col_min = math.floor(self.biome_width / 2) - math.floor(self.gate_width / 2)
+        self.gate_col_max = math.floor(self.biome_width / 2) + math.ceil(self.gate_width / 2) - 1
 
         self.foods_map = []
         self.animals_map = []
@@ -204,6 +219,7 @@ class Map:
         self.setup_logs()
         self.latest_update_time = time.localtime()
         self.deaths = []
+        self.exec_airdrop()
 
     def add_animal(self, species_id, row=None, col=None):
         if row is None:
@@ -222,6 +238,9 @@ class Map:
             'reserves' : global_animal_sizes[species_id]*starting_reserves_mult,
             'has_been_killed' : False, # for consistency we do not remove it from the array until the phase is over, but want to make sure it is not eaten twice and does not act later in that round.
         })
+
+    def biome_from_square(self, square):
+        return([math.floor(square[0]/self.biome_height), math.floor(square[1]/self.biome_width)])
 
     def dist_between_squares(self, s1, s2):
         return(abs(s1[0]-s2[0]) + abs(s1[1]-s2[1]))
@@ -278,20 +297,41 @@ class Map:
         else:
             return([0, None, None])
 
-    def airdrop_food(self, food_id, drop_rate):
-        food_to_make = rand_expect(drop_rate * self.height * self.width)
+    def get_biome_offset(self, biome_coords):
+        return([biome_coords[0]*self.biome_height, biome_coords[1]*self.biome_width])
+
+    def airdrop_food_into_biome(self, food_id, biome_coords, drop_rate):
+        food_to_make = rand_expect(drop_rate * self.biome_height * self.biome_width)
+        biome_offset = self.get_biome_offset(biome_coords)
         for i in range(food_to_make):
-            row_num = roll_die(self.height) - 1
-            col_num = roll_die(self.width) - 1
+            row_num = roll_die(self.biome_height) - 1 + biome_offset[0]
+            col_num = roll_die(self.biome_width) - 1 + biome_offset[1]
             self.foods_map[row_num][col_num][food_id] = min(self.foods_map[row_num][col_num][food_id] + 1, 10)
 
+    def exec_grow_in_biome(self, biome_coords):
+        biome_type = self.biome_map[biome_coords[0]][biome_coords[1]]
+        food_abundances = biome_food_densities[biome_type]
+        for food_id in range(global_num_foods):
+            food_abundance = food_abundances[food_id]
+            self.airdrop_food_into_biome(food_id, biome_coords, food_abundance)
+            
+    def starting_airdrop_in_biome(self, biome_coords):
+        biome_type = self.biome_map[biome_coords[0]][biome_coords[1]]
+        food_abundances = biome_airdrop_densities[biome_type]
+        for food_id in range(global_num_foods):
+            food_abundance = food_abundances[food_id]
+            self.airdrop_food_into_biome(food_id, biome_coords, food_abundance)
+            
     def exec_grow(self):
-        for food in self.food_abundances:
-            food_id = food[0]
-            food_abundance = food[1]
-            self.airdrop_food(food_id, food_abundance)
-
-
+        for row in range(self.biome_map_height):
+            for col in range(self.biome_map_width):
+                self.exec_grow_in_biome([row, col])
+                
+    def exec_airdrop(self):
+        for row in range(self.biome_map_height):
+            for col in range(self.biome_map_width):
+                self.starting_airdrop_in_biome([row, col])
+                
     def move_animal(self, animal, move):
         #print('{} moves from {},{} to {},{}'.format(animal['species_id'], animal['row'], animal['col'], move[0], move[1]))
         self.animals_map[animal['row']][animal['col']].remove(animal['species_id'])
@@ -356,6 +396,34 @@ class Map:
         else:
             return False
 
+    def in_gate_row(self, square):
+        r = square[0] % self.biome_height
+        if r >= self.gate_row_min and r <= self.gate_row_max:
+            return True
+        else:
+            return False
+
+    def in_gate_col(self, square):
+        c = square[1] % self.biome_width
+        if c >= self.gate_col_min and c <= self.gate_col_max:
+            return True
+        else:
+            return False
+
+    def get_biome_coords(self, square):
+        return([math.floor(square[0]/self.biome_height), math.floor(square[1]/self.biome_width)])
+    
+    def squares_can_see(self, s1, s2):
+        b1 = self.get_biome_coords(s1)
+        b2 = self.get_biome_coords(s2)
+        if b1[0] != s1[0] and self.in_gate_col(s1) == False and self.in_gate_col(s2) == False:
+            return False
+                
+        if b1[1] != s1[1] and self.in_gate_row(s1) == False and self.in_gate_row(s2) == False:
+            return False
+                
+        return True
+    
     def exec_actions(self):
         random.shuffle(self.animals)
         self.animals.sort(key = lambda x: x['weapons']) # avoid catching same-speed via turn order shenanigans
@@ -474,11 +542,15 @@ class Map:
         log_string = ','.join(row)+'\n'
         f = open('darwin_map_output.csv', mode)
         f.write(log_string)
-
+        
     def get_animal_counts(self):
-        counts = [0 for n in global_animal_names]
+        num_biomes = self.biome_map_width * self.biome_map_height + 1
+        counts = [ [0 for b in range(num_biomes)] for n in global_animal_names]
         for a in self.animals:
-            counts[a['species_id']] = counts[a['species_id']] + 1
+            counts[a['species_id']][0] = counts[a['species_id']][0] + 1
+            biome = self.get_biome_coords([a['row'], a['col']])
+            biome_index = 1 + biome[0] + (biome[1] * self.biome_map_width)
+            counts[a['species_id']][biome_index] = counts[a['species_id']][biome_index] + 1
         return(counts)
 
     def log_counts(self):
@@ -534,22 +606,29 @@ class Map:
         for row in out:
             print([e + (' ' * (max_len - len(e))) for e in row])
 
-    def total_nutrition_per_round(self):
+    def total_nutrition_per_round_in_biome(self, biome_coords):
+        biome_type = self.biome_map[biome_coords[0]][biome_coords[1]]
         square_nutrition = 0
-        for food in self.food_abundances:
-            food_id = food[0]
-            food_abundance = food[1]
+        for food_id in range(global_num_foods):
+            food_abundance = biome_food_densities[biome_type][food_id]
             per_food_nutrition = global_food_details['nutritions'][food_id]
             food_nutrition = per_food_nutrition * food_abundance
             square_nutrition = square_nutrition + food_nutrition
-        total_nutrition = square_nutrition * self.width * self.height
+        total_nutrition = square_nutrition * self.biome_width * self.biome_height
         return(total_nutrition)
+        
+    def total_nutrition_per_round(self):
+        nutrition = 0
+        for r in range(self.biome_map_height):
+            for c in range(self.biome_map_width):
+                nutrition = nutrition + self.total_nutrition_per_round_in_biome([r,c])
+        return(nutrition)
 
     def total_nutrition_rate(self):
         counts = self.get_animal_counts()
         total_rate = 0
         for i in range(global_num_animals):
-            total_rate = total_rate + (counts[i] * global_animal_sizes[i] * global_animal_speeds[i] * metabolic_rate / max_speed)
+            total_rate = total_rate + (counts[i][0] * global_animal_sizes[i] * global_animal_speeds[i] * metabolic_rate / max_speed)
         return(total_rate)
 
     def total_food_amount(self, food_id):
@@ -563,13 +642,17 @@ class Map:
         print('\nRound {}. {}s elapsed since last update. ({} species remain of which {} have real populations, {:.2f}% of capacity):\n\n'.format(
             my_map.round_no,
             elapsed,
-            len([i for i in counts if i > 0]),
-            len([i for i in counts if i >= 10]),
+            len([i for i in counts if i[0] > 0]),
+            len([i for i in counts if i[0] >= 10]),
             100 * my_map.total_nutrition_rate() / my_map.total_nutrition_per_round()
         ))
         for i in range(global_num_animals):
-            if counts[i] >= 10:
-                print('{} ({}) has a population of {}'.format(i, global_animal_names[i], counts[i]))
+            if counts[i][0] >= 10:
+                biome_breakdown = []
+                for j in range(1, len(counts[i])):
+                    biome_breakdown.append(str(counts[i][j]))
+                biome_breakdown = ', '.join(biome_breakdown)
+                print('{} ({}) has a population of {} ({})'.format(i, global_animal_names[i], counts[i][0], biome_breakdown))
         food_strings = ['{} density is {:.4f}'.format(global_food_details['names'][f], self.total_food_amount(f) / (self.height * self.width)) for f in range(global_num_foods)]
         print(', '.join(food_strings))
 
@@ -609,15 +692,7 @@ class Map:
 
 full_map = True
 if full_map:
-    my_map = Map(700,700,[['Grass',0.002],['Fruit',0.0002], ['Seeds',0.001]]) #standard
-    airdrop_rates = [ 0.01, 0.10, 0.17, 0.24, 0.05, 0.13]
-    #my_map = Map(600,600,[['Grass',0.001],['Fruit',0.00004], ['Seeds',0.0008]]) #tundra
-    #airdrop_rates = [ 0.005, 0.08, 0.10, 0.33, 0.05, 0.6]
-    #my_map = Map(500,500,[['Grass',0.003],['Fruit',0.001], ['Seeds',0.0012]]) #jungle
-    #airdrop_rates = [ 0.06, 0.5, 0.8, 0.8, 0.15, 0.6]
-    # empirically derived starting foods by poking at steady-state equilibria, trying to make sure our start isn't too un-smooth
-    for i in range(6):
-        my_map.airdrop_food(i, airdrop_rates[i])
+    my_map = Map([['Tundra', 'Plains'],['Plains','Jungle']], 300, 300, 0)
 
     nutrition_per_species = my_map.total_nutrition_per_round() / global_num_animals
     for i in range(global_num_animals):
