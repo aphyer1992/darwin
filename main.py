@@ -692,7 +692,7 @@ class Map:
 
 full_map = True
 if full_map:
-    my_map = Map([['Tundra', 'Plains'],['Plains','Jungle']], 300, 300, 0)
+    my_map = Map([['Tundra', 'Plains'],['Plains','Jungle']], 300, 300, 0)  # NOTE: UNLESS I SCREWED THINGS UP, THIS LAST 0 MEANS NO BIOME TRANSIT.
 
     nutrition_per_species = my_map.total_nutrition_per_round() / global_num_animals
     for i in range(global_num_animals):
