@@ -334,6 +334,10 @@ class Map:
                 
     def move_animal(self, animal, move):
         #print('{} moves from {},{} to {},{}'.format(animal['species_id'], animal['row'], animal['col'], move[0], move[1]))
+        old_biome = self.biome_from_square([animal['row'],animal['col']])
+        new_biome = self.biome_from_square(move)
+        if old_biome != new_biome:
+            print('{} moves from {},{} to {},{}'.format(animal['species_id'], animal['row'], animal['col'], move[0], move[1]))
         self.animals_map[animal['row']][animal['col']].remove(animal['species_id'])
         animal['row'] = move[0]
         animal['col'] = move[1]
@@ -416,10 +420,10 @@ class Map:
     def squares_can_see(self, s1, s2):
         b1 = self.get_biome_coords(s1)
         b2 = self.get_biome_coords(s2)
-        if b1[0] != s1[0] and self.in_gate_col(s1) == False and self.in_gate_col(s2) == False:
+        if b1[0] != b2[0] and self.in_gate_col(s1) == False and self.in_gate_col(s2) == False:
             return False
                 
-        if b1[1] != s1[1] and self.in_gate_row(s1) == False and self.in_gate_row(s2) == False:
+        if b1[1] != b2[1] and self.in_gate_row(s1) == False and self.in_gate_row(s2) == False:
             return False
                 
         return True
@@ -440,8 +444,10 @@ class Map:
                 current_square = [a['row'], a['col']]
                 neighbor_squares = [add_coords(current_square, x) for x in get_vectors_of_size_1()]
                 neighbor_squares = [s for s in neighbor_squares if self.valid_square(s)]
+                neighbor_squares = [s for s in neighbor_squares if self.squares_can_see(current_square, s)]
                 two_away_squares = [add_coords(current_square, x) for x in get_vectors_of_size_2()]
                 two_away_squares = [s for s in two_away_squares if self.valid_square(s)]
+                two_away_squares = [s for s in two_away_squares if self.squares_can_see(current_square, s)]
 
                 random.shuffle(neighbor_squares) # order will be used for deciding where to move to later
                 random.shuffle(two_away_squares)
