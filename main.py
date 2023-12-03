@@ -185,6 +185,14 @@ def rand_expect(n):
 def add_coords(coords, move):
     return([coords[0] + move[0], coords[1] + move[1]])
 
+def weighted_random(input_list):
+    rand = random.random()
+    for e in input_list:
+        rand = rand - e['prob']
+        if rand < 0:
+            return(e)
+    assert(False)
+
 class Map:
     def __init__(self, biome_map, biome_width, biome_height, gate_width):
         self.biome_width = biome_width
@@ -219,13 +227,16 @@ class Map:
         self.setup_logs()
         self.latest_update_time = time.localtime()
         self.deaths = []
+        self.setup_biome_probs()
         self.exec_airdrop()
 
     def add_animal(self, species_id, row=None, col=None):
         if row is None:
-            row = roll_die(self.height)-1
-        if col is None:
-            col = roll_die(self.width)-1
+            assert( col is None )
+            biome = weighted_random(self.biome_probs)
+            biome_offset = self.get_biome_offset([biome['row'], biome['col']])
+            row = roll_die(self.biome_height) - 1 + biome_offset[0]
+            col = roll_die(self.biome_width) - 1 + biome_offset[1]
         self.animals_map[row][col].append(species_id)
         self.animals.append({
             'species_id' : species_id,
@@ -555,7 +566,7 @@ class Map:
         for a in self.animals:
             counts[a['species_id']][0] = counts[a['species_id']][0] + 1
             biome = self.get_biome_coords([a['row'], a['col']])
-            biome_index = 1 + biome[0] + (biome[1] * self.biome_map_width)
+            biome_index = 1 + biome[1] + (biome[0] * self.biome_map_width)
             counts[a['species_id']][biome_index] = counts[a['species_id']][biome_index] + 1
         return(counts)
 
@@ -612,6 +623,19 @@ class Map:
         for row in out:
             print([e + (' ' * (max_len - len(e))) for e in row])
 
+    def setup_biome_probs(self):
+        total_nutrition = 0
+        prob_list = []
+        for r in range(self.biome_map_height):
+            for c in range(self.biome_map_width):
+                n = self.total_nutrition_per_round_in_biome([r,c])
+                total_nutrition = total_nutrition + n
+                prob_list.append({'row':r, 'col': c, 'nutrition': n})
+        for e in prob_list:
+            e['prob'] = e['nutrition'] / total_nutrition
+
+        self.biome_probs = prob_list
+                
     def total_nutrition_per_round_in_biome(self, biome_coords):
         biome_type = self.biome_map[biome_coords[0]][biome_coords[1]]
         square_nutrition = 0
@@ -698,7 +722,7 @@ class Map:
 
 full_map = True
 if full_map:
-    my_map = Map([['Tundra', 'Plains'],['Plains','Jungle']], 300, 300, 0)  # NOTE: UNLESS I SCREWED THINGS UP, THIS LAST 0 MEANS NO BIOME TRANSIT.
+    my_map = Map([['Plains', 'Tundra', 'Plains','Jungle', 'Plains']], 300, 300, 0)  # NOTE: UNLESS I SCREWED THINGS UP, THIS LAST 0 MEANS NO BIOME TRANSIT.
 
     nutrition_per_species = my_map.total_nutrition_per_round() / global_num_animals
     for i in range(global_num_animals):
