@@ -2,7 +2,7 @@ import math
 import random
 import time
 
-random.seed('darwinsmalllaptop59')
+random.seed('darwindesktopaa')
 
 
 meat_nutrition = 1
@@ -116,7 +116,10 @@ for i in range(2,11):
     animals_to_make.append({'speed':1, 'weapons':i, 'armor':0, 'edibles':[0], 'camoflague':True, 'name':'Lurker {}'.format(i), 'size': calc_size(1,i,0,[0],True)})
 
 for i in range(1,8):
-    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,1] if i <= 6 else [0], 'camoflague':True, 'name':'Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,1] if i <= 6 else [0],True)})
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0], 'camoflague':False, 'name':'Hunter {}'.format(i), 'size': calc_size(i,i,0,[0],False)})
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,2], 'camoflague':False, 'name':'Offal Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,1],False)})
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,1], 'camoflague':False, 'name':'Bone Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,1],False)})
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,4], 'camoflague':False, 'name':'Fruit Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,4],False)})
 
 
 create_basic_herbivores([3,4,5], 'Multiplant')
@@ -473,8 +476,9 @@ class Map:
 
                 if len(threats):
                     possible_moves = [[x, self.shortest_dist_to_threat(x, threats)] for x in possible_moves]
-                    furthest_dist = max([x[1] for x in possible_moves]) # furthest we can get from a threat
-                    possible_moves = [x[0] for x in possible_moves if x[1] == furthest_dist]
+                    best_dist = max([x[1] for x in possible_moves]) # furthest we can get from a threat
+                    best_dist = min(best_dist, 4.01) # out of vision range is always okay
+                    possible_moves = [x[0] for x in possible_moves if x[1] >= best_dist]
 
                 # adjacent to us we prioritize prey over food
                 possible_moves = [[square, self.prey_amount_in_square(a['species_id'], square, can_see_camo=True)] for square in possible_moves]
