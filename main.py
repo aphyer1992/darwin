@@ -11,7 +11,7 @@ offal_nutrition = 0.25
 global_food_details = {
     'names' : [ 'Meat', 'Bone', 'Offal', 'Grass', 'Fruit', 'Seeds' ],
     'nutritions' : [ meat_nutrition, bone_nutrition, offal_nutrition, 0.3, 0.7, 0.15 ],
-    'costs' : [ 1, 4, 2, 5, 4, 1 ],
+    'costs' : [ 1, 5, 2, 4, 3, 1 ],
 }
 
 biome_food_densities = {
@@ -402,9 +402,10 @@ class Map:
     def kill_animal(self, animal, killed_by):
         self.animals_map[animal['row']][animal['col']].remove(animal['species_id'])
         animal['has_been_killed'] = True
-        output_meat = ( 0.4 * animal['size'] ) + ( 0.667 * animal['reserves'] )
-        output_bone = ( 0.4 * animal['size'] )
-        output_offal = ( 0.2 * animal['size'] ) + ( 0.333 * animal['reserves'] )
+        output_nutrients = animal['size'] + animal['reserves']
+        output_meat = 0.5 * output_nutrients
+        output_bone = 0.25 * output_nutrients
+        output_offal = 0.25 * output_nutrients
         self.foods_map[animal['row']][animal['col']][0] = self.foods_map[animal['row']][animal['col']][0] + rand_expect( output_meat / meat_nutrition )
         self.foods_map[animal['row']][animal['col']][1] = self.foods_map[animal['row']][animal['col']][1] + rand_expect( output_bone / bone_nutrition )
         self.foods_map[animal['row']][animal['col']][2] = self.foods_map[animal['row']][animal['col']][2] + rand_expect( output_offal / offal_nutrition )
@@ -728,8 +729,8 @@ class Map:
 
 full_map = True
 if full_map:
-    my_map = Map([['Plains', 'Tundra', 'Plains','Jungle', 'Plains']], 300, 300, 0)  # NOTE: UNLESS I SCREWED THINGS UP, THIS LAST 0 MEANS NO BIOME TRANSIT.
-
+    my_map = Map([['Plains', 'Tundra', 'Plains','Jungle', 'Plains']], 400, 400, 4)
+    
     nutrition_per_species = my_map.total_nutrition_per_round() / global_num_animals
     for i in range(global_num_animals):
         num_to_make = math.floor(nutrition_per_species / (global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate))
