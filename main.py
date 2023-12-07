@@ -107,7 +107,8 @@ def create_basic_herbivores(edibles, name_str): # make a locust, a speed invinci
     animals_to_make.append({'speed':1, 'weapons':0, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Slow Camo Locust'.format(name_str), 'size': calc_size(1,0,0,edibles,True)})
     if 0 not in edibles:
         edibles = [0]+edibles
-    animals_to_make.append({'speed':2, 'weapons':1, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Flytrap'.format(name_str), 'size': calc_size(2,1,0,edibles,True)})
+    animals_to_make.append({'speed':1, 'weapons':1, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Flytrap'.format(name_str), 'size': calc_size(1,1,0,edibles,True)})
+    animals_to_make.append({'speed':3, 'weapons':1, 'armor':0, 'edibles':edibles, 'camoflague':True, 'name':'{} Spider'.format(name_str), 'size': calc_size(3,1,0,edibles,True)})
 
 for i in range(global_num_foods):
     create_basic_herbivores([i], global_food_details['names'][i])
@@ -117,9 +118,10 @@ for i in range(2,11):
 
 for i in range(1,8):
     animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0], 'camoflague':False, 'name':'Hunter {}'.format(i), 'size': calc_size(i,i,0,[0],False)})
-    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,2], 'camoflague':False, 'name':'Offal Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,1],False)})
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,2], 'camoflague':False, 'name':'Offal Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,2],False)})
     animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,1], 'camoflague':False, 'name':'Bone Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,1],False)})
     animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,4], 'camoflague':False, 'name':'Fruit Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,4],False)})
+    animals_to_make.append({'speed':i, 'weapons':i, 'armor':0, 'edibles':[0,3], 'camoflague':False, 'name':'Grass Hunter {}'.format(i), 'size': calc_size(i,i,0,[0,3],False)})
 
 
 create_basic_herbivores([3,4,5], 'Multiplant')
@@ -742,6 +744,12 @@ if full_map:
                 chance_to_make = nutrition_per_species / (20000*global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate)
                 if random.random() < chance_to_make:
                     my_map.add_animal(i)
+        elif my_map.round_no < 100000:
+            for i in range(global_num_animals):
+                chance_to_make = nutrition_per_species / (200000*global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate)
+                if random.random() < chance_to_make:
+                    my_map.add_animal(i)
+
         if my_map.round_no%100 == 0:
             my_map.display_status()
             if my_map.round_no > 1e6:
