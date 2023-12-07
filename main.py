@@ -2,7 +2,7 @@ import math
 import random
 import time
 
-random.seed('darwindesktopaa')
+random.seed('darwinsmall')
 
 
 meat_nutrition = 1
@@ -350,10 +350,10 @@ class Map:
                 
     def move_animal(self, animal, move):
         #print('{} moves from {},{} to {},{}'.format(animal['species_id'], animal['row'], animal['col'], move[0], move[1]))
-        old_biome = self.biome_from_square([animal['row'],animal['col']])
-        new_biome = self.biome_from_square(move)
-        if old_biome != new_biome:
-            print('{} moves from {},{} to {},{}'.format(animal['species_id'], animal['row'], animal['col'], move[0], move[1]))
+        #old_biome = self.biome_from_square([animal['row'],animal['col']])
+        #new_biome = self.biome_from_square(move)
+        #if old_biome != new_biome:
+        #    print('{} moves from {},{} to {},{}'.format(animal['species_id'], animal['row'], animal['col'], move[0], move[1]))
         self.animals_map[animal['row']][animal['col']].remove(animal['species_id'])
         animal['row'] = move[0]
         animal['col'] = move[1]
@@ -740,14 +740,9 @@ if full_map:
     my_map.display_status()
     while True:
         my_map.exec_round()
-        if my_map.round_no < 10000:
+        if my_map.round_no < 100000:
             for i in range(global_num_animals):
-                chance_to_make = nutrition_per_species / (20000*global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate)
-                if random.random() < chance_to_make:
-                    my_map.add_animal(i)
-        elif my_map.round_no < 100000:
-            for i in range(global_num_animals):
-                chance_to_make = nutrition_per_species / (200000*global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate)
+                chance_to_make = nutrition_per_species / (100000*global_animal_sizes[i] * (global_animal_speeds[i]/max_speed) * metabolic_rate)
                 if random.random() < chance_to_make:
                     my_map.add_animal(i)
 
