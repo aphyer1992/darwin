@@ -781,13 +781,11 @@ public:
             if ((*a).alive) {
                 surviving_animals.push_back(a);
             }
-        }
-        animals_list = surviving_animals;
-        for (vector<Square> row : contents) {
-            for (Square square : row) {
-                square.clear_dead_animals();
+            else {
+                contents[(*a).coords.row][(*a).coords.col].clear_animal_by_id((*a).id);
             }
         }
+        animals_list = surviving_animals;
     }
 
     void exec_round() {
@@ -846,7 +844,7 @@ public:
 
 int main()
 {
-    World my_world = World(100, 100);
+    World my_world = World(500, 500);
     my_world.print_status();
 
     for (int i = 0; i < 100000; i++)
