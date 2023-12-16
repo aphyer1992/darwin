@@ -13,30 +13,30 @@ using namespace std;
 
 namespace constants
 {
-    const float meat_nutrition = 1;
-    const float bone_nutrition = 0.5;
-    const float offal_nutrition = 0.25;
-    const float fruit_nutrition = 0.7;
-    const float grass_nutrition = 0.3;
-    const float seeds_nutrition = 0.15;
+    const double meat_nutrition = 1;
+    const double bone_nutrition = 0.5;
+    const double offal_nutrition = 0.25;
+    const double fruit_nutrition = 0.7;
+    const double grass_nutrition = 0.3;
+    const double seeds_nutrition = 0.15;
 
     const int num_foods = 6;
     // IMPORTANT: MUST BE SORTED DESCENDING BY NUTRITION!
     const string food_names[num_foods] = { "Meat", "Fruit", "Bone", "Grass", "Offal", "Seeds" };
-    const array<float, num_foods> food_nutritions = { meat_nutrition, fruit_nutrition, bone_nutrition, grass_nutrition, offal_nutrition, seeds_nutrition };
-    const array<float, num_foods> food_costs = {1, 3, 4, 5, 2, 1};
-    const array<float, num_foods> food_spawn_rates = { 0, 0.0002, 0, 0.002, 0, 0.001 };
-    const array<float, num_foods> food_drop_rates = { 0.5, 0, 0.25, 0, 0.25, 0 };
-    const array<float, num_foods> food_starting_rates = { 0.01, 0.05, 0.10, 0.24, 0.17, 0.13 };
+    const array<double, num_foods> food_nutritions = { meat_nutrition, fruit_nutrition, bone_nutrition, grass_nutrition, offal_nutrition, seeds_nutrition };
+    const array<double, num_foods> food_costs = {1, 3, 4, 5, 2, 1};
+    const array<double, num_foods> food_spawn_rates = { 0, 0.0002, 0, 0.002, 0, 0.001 };
+    const array<double, num_foods> food_drop_rates = { 0.5, 0, 0.25, 0, 0.25, 0 };
+    const array<double, num_foods> food_starting_rates = { 0.01, 0.05, 0.10, 0.24, 0.17, 0.13 };
 
     const int max_speed = 10;
     const int max_weapons_armor = 10;
 
     const int num_species = 300;
 
-    const float starting_reserves_ratio = 0.5;
-    const float reproduction_reserves_ratio = 2.0;
-    const float metabolic_rate = 0.01;
+    const double starting_reserves_ratio = 0.5;
+    const double reproduction_reserves_ratio = 2.0;
+    const double metabolic_rate = 0.01;
 
     const array<array<int, 2>, 5> dist_01_neighbors = { { {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0} } }; // why do i need a third brace?
     const array<array<int, 2>, 8> dist_2_neighbors = { { {0,2}, {0,-2}, {2,0}, {-2,0}, {1,1}, {1,-1}, {-1,1}, {-1,-1} } };
@@ -48,9 +48,9 @@ int triangle(int n)
     return(n * (n + 1) / 2);
 }
 
-float calc_size(int weapons, int armor, int speed, array <bool,6> edibles, bool camo)
+double calc_size(int weapons, int armor, int speed, array <bool,6> edibles, bool camo)
 {
-    float size = 0;
+    double size = 0;
     size = size + triangle(weapons);
     size = size + (0.5 * triangle(armor));
     size = size + (0.5 * triangle(speed));
@@ -82,12 +82,12 @@ public:
         return(Coords(row + move[0], col + move[1]));
     }
 
-    float dist_from(Coords target) {
+    double dist_from(Coords target) {
         return(sqrt(pow(row - target.row, 2) + pow(col - target.col, 2)));
     }
 
-    float closest_dist_to(vector<Coords> targets) {
-        float dist = 999999; // I tried making this INT_MAX and it blew up and I don't understand why
+    double closest_dist_to(vector<Coords> targets) {
+        double dist = 999999; // I tried making this INT_MAX and it blew up and I don't understand why
         for (Coords target : targets) {
             dist = min(dist, dist_from(target));
         }
@@ -102,8 +102,8 @@ public:
     int speed;
     array<bool, 6> edibles;
     bool camo;
-    float size;
-    float runrate;
+    double size;
+    double runrate;
     string name;
     int id;
 
@@ -161,7 +161,7 @@ class Animal {
 public:
     Species species;
     Coords coords;
-    float reserves;
+    double reserves;
     bool alive;
     long id;
 
@@ -206,16 +206,6 @@ public:
         animals_present.push_back(to_add);
     }
 
-    void clear_dead_animals() {
-        vector<shared_ptr<Animal>> surviving_animals = {};
-        for (shared_ptr<Animal> a : animals_present) {
-            if ((*a).alive) {
-                surviving_animals.push_back(a);
-            }
-        }
-        animals_present = surviving_animals;
-    }
-
     void clear_animal_by_id(long id) {
         vector<shared_ptr<Animal>> remaining = {};
         for (shared_ptr<Animal> a : animals_present) {
@@ -230,10 +220,10 @@ public:
 class SquareInfo {
 public:
     bool visible_threat;
-    float best_food;
-    float largest_visible_prey;
-    float largest_chaseable_prey;
-    float distance_from_threat;
+    double best_food;
+    double largest_visible_prey;
+    double largest_chaseable_prey;
+    double distance_from_threat;
     bool eligible_move;
     Coords coords;
 
@@ -290,9 +280,9 @@ public:
         return(dis(rng));
     }
 
-    int randomize_to_int(float input) {
+    int randomize_to_int(double input) {
         int out = floor(input);
-        float remainder = input - out;
+        double remainder = input - out;
         if (get_random_number(0, 100) < (remainder * 100)) { // not perfect I guess
             out = out + 1;
         }
@@ -446,8 +436,8 @@ public:
         contents[coords.row][coords.col].add_animal((new_animal));
     }
 
-    void airdrop_animals(float capacity_fraction = 1) {
-        float capacity = get_capacity();
+    void airdrop_animals(double capacity_fraction = 1) {
+        double capacity = get_capacity();
         capacity *= capacity_fraction;
         for (Species species : species_list) {
             int num_to_airdrop = randomize_to_int(capacity / (species_defined * species.runrate));
@@ -465,7 +455,7 @@ public:
 
     void kill_animal(shared_ptr<Animal> animal, int killer_id) {
         (*animal).alive = false;
-        float amount_dropped = (*animal).reserves + (*animal).species.size;
+        double amount_dropped = (*animal).reserves + (*animal).species.size;
         for (int i = 0; i < constants::num_foods; i++) {
             int food_amount_dropped = randomize_to_int(amount_dropped * constants::food_drop_rates[i] / constants::food_nutritions[i]);
             contents[(*animal).coords.row][(*animal).coords.col].foods_present[i] += food_amount_dropped;
@@ -603,13 +593,13 @@ public:
         }
 
         // require best distance from threat.
-        float best_threat_dist = 0;
+        double best_threat_dist = 0;
         for (const SquareInfo& si : moves) {
             if (si.distance_from_threat > best_threat_dist) {
                 best_threat_dist = si.distance_from_threat;
             }
         }
-        best_threat_dist = min(best_threat_dist, float(2.1)); // we accept anything >2
+        best_threat_dist = min(best_threat_dist, double(2.1)); // we accept anything >2
 
         vector<SquareInfo> best_moves;
         for (const SquareInfo& si : moves) {
@@ -621,7 +611,7 @@ public:
         
         
         // at equality, require largest killable prey
-        float best_prey = 0;
+        double best_prey = 0;
         for (const SquareInfo& si : moves) {
             if (si.largest_visible_prey > best_prey) {
                 best_prey = si.largest_visible_prey;
@@ -636,7 +626,7 @@ public:
         moves = best_moves;
 
         // at equality, require best food available
-        float best_food = 0;
+        double best_food = 0;
         for (const SquareInfo& si : moves) {
             if (si.best_food > best_food) {
                 best_food = si.best_food;
@@ -652,7 +642,7 @@ public:
 
         // if no food is available and multiple squares under consideration, look for chaseable prey.
         if (best_food == 0 && moves.size() > 1) {
-            float best_chase = 0;
+            double best_chase = 0;
             for (const SquareInfo& si : vision) {
                 if (si.largest_chaseable_prey > best_chase) {
                     best_prey = si.largest_chaseable_prey;
@@ -665,15 +655,15 @@ public:
                 }
             }
             
-            float best_chase_dist = 999999;
+            double best_chase_dist = 999999;
             for (SquareInfo si : moves) {
-                float chase_dist = si.coords.closest_dist_to(chase_locations);
+                double chase_dist = si.coords.closest_dist_to(chase_locations);
                 best_chase_dist = min(best_chase_dist, chase_dist);
             }
 
             vector<SquareInfo> best_moves;
             for (SquareInfo si : moves) {
-                float chase_dist = si.coords.closest_dist_to(chase_locations);
+                double chase_dist = si.coords.closest_dist_to(chase_locations);
                 if (chase_dist <= best_chase_dist) {
                     best_moves.push_back(si);
                 }
@@ -685,7 +675,7 @@ public:
 
     void perform_fight(shared_ptr<Animal> animal) {
         Square square = get_square_at_coords((*animal).coords);
-        float largest_prey = 0;
+        double largest_prey = 0;
         shared_ptr<Animal> to_eat;
 
         Animal target_details;
@@ -723,8 +713,8 @@ public:
         perform_feed(animal);
     }
 
-    float get_capacity() {
-        float capacity = 0;
+    double get_capacity() {
+        double capacity = 0;
         for (int i = 0; i < constants::num_foods; i++) {
             capacity += (constants::food_nutritions[i] * size * constants::food_spawn_rates[i]);
         }
@@ -739,7 +729,7 @@ public:
         return(get_random_number(0, width - 1));
     }
 
-    void spawn_foods(array<float, constants::num_foods> spawn_rates) {
+    void spawn_foods(array<double, constants::num_foods> spawn_rates) {
         for (int i = 0; i < constants::num_foods; i++) {
             int food_amount_spawned = randomize_to_int(size * spawn_rates[i]);
             for (int j = 0; j < food_amount_spawned; j++) {
@@ -766,11 +756,13 @@ public:
     void exec_breeding_starvation() {
         vector<shared_ptr<Animal>> to_breed = {};
         for (shared_ptr<Animal> a : animals_list) {
-            if ((*a).reserves <= 0) {
-                kill_animal(a, -1);
-            }
-            if ((*a).reserves >= (constants::reproduction_reserves_ratio * (*a).species.size) ) {
-                to_breed.push_back(a);
+            if ((*a).alive) {
+                if ((*a).reserves <= 0) {
+                    kill_animal(a, -1);
+                }
+                if ((*a).reserves >= (constants::reproduction_reserves_ratio * (*a).species.size)) {
+                    to_breed.push_back(a);
+                }
             }
         }
         for (shared_ptr<Animal> breeder : to_breed) {
@@ -794,7 +786,6 @@ public:
     void exec_round() {
         exec_growth();
         exec_actions();
-        clear_dead_animals();
         exec_breeding_starvation();
         clear_dead_animals();
         rounds_elapsed++;
@@ -803,8 +794,8 @@ public:
         }
     }
 
-    array<float, constants::num_foods> food_abundances() {
-        array<float, constants::num_foods> abundances;
+    array<double, constants::num_foods> food_abundances() {
+        array<double, constants::num_foods> abundances;
         abundances.fill(0);
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
@@ -823,7 +814,7 @@ public:
         auto new_update = chrono::system_clock::now();
         cout << "\n\n\nStatus after round " << rounds_elapsed << ", " << chrono::duration_cast<chrono::seconds>(new_update-latest_update).count() << "s elapsed since last update:\n";
         vector<int> counts = get_animal_counts();
-        float runrate_used = 0;
+        double runrate_used = 0;
         int total_animals = 0;
         for (int i = 0; i < species_defined; i++) {
             runrate_used += (species_list[i].runrate * counts[i]);
