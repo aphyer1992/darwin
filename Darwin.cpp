@@ -270,7 +270,7 @@ public:
         create_predation_maps();
         create_contents();
         spawn_foods(constants::food_starting_rates);
-        airdrop_animals();
+      //  airdrop_animals();
         latest_update = chrono::system_clock::now();
         recent_kills = {};
     };
@@ -448,9 +448,9 @@ public:
     }
 
     void move_animal(shared_ptr<Animal> animal, Coords coords) {
-        get_square_at_coords((*animal).coords).clear_animal_by_id((*animal).id);
+        contents[(*animal).coords.row][(*animal).coords.col].clear_animal_by_id((*animal).id);
         (*animal).coords = coords;
-        get_square_at_coords((*animal).coords).add_animal(animal);
+        contents[(*animal).coords.row][(*animal).coords.col].add_animal(animal);
     }
 
     void kill_animal(shared_ptr<Animal> animal, int killer_id) {
@@ -849,11 +849,35 @@ public:
 
 int main()
 {
-    World my_world = World(500, 500);
-    my_world.print_status();
+    World my_world = World(5, 5);
+    my_world.create_animal(my_world.species_list[1], Coords(0, 0));
+    my_world.create_animal(my_world.species_list[64], Coords(0, 1));
+    my_world.create_animal(my_world.species_list[28], Coords(0, 2));
 
-    for (int i = 0; i < 100000; i++)
+
+    vector<vector<SquareInfo>> visions = {};
+    for (shared_ptr<Animal> a : my_world.animals_list) {
+        (*a).print();
+    }
+
+    for (int i = 0; i < 10; i++) {
+        cout << "Executing Round " << i + 1 << "\n";
         my_world.exec_round();
+        for (shared_ptr<Animal> a : my_world.animals_list) {
+            (*a).print();
+        }
+    }
+
+    for (shared_ptr<Animal> a : my_world.animals_list) {
+        visions.push_back(my_world.get_vision(a));
+    }
+
+    int x = 2;
+    
+    //my_world.print_status();
+
+    //for (int i = 0; i < 100000; i++)
+    //    my_world.exec_round();
         
 }
 
