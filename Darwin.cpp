@@ -263,6 +263,7 @@ public:
     chrono::system_clock::time_point latest_update;
     int num_recently_killed;
     int num_recently_starved;
+    vector<array<int, 2>> recent_kills;
 
 
     World(int width_in, int height_in)
@@ -281,6 +282,7 @@ public:
         spawn_foods(constants::food_starting_rates);
         airdrop_animals();
         latest_update = chrono::system_clock::now();
+        recent_kills = {};
     };
 
     int get_random_number(int min, int max) {
@@ -474,6 +476,7 @@ public:
         }
         else {
             num_recently_killed++;
+            recent_kills.push_back({ killer_id, (*animal).species.id });
         }
     }
 
@@ -829,7 +832,7 @@ public:
         cout << total_animals << " alive, current metabolic runrate is at " << (runrate_used * 100)/get_capacity() << "% of capacity\n";
 
         for (int i = 0; i < species_defined; i++) {
-            if (counts[i] >= 5) {
+            if (counts[i] >= 10) {
                 cout << species_list[i].print_details_string() << " has population " << counts[i] << "\n";
             }
         }
@@ -837,7 +840,18 @@ public:
         for (int i = 0; i < constants::num_foods; i++) {
             cout << "Current abundance of " << constants::food_names[i] << " is " << abundances[i] << "\n";
         }
-        cout << "Since the last update " << num_recently_killed << " animals have been killed and " << num_recently_starved << "have starved\n";
+        cout << "Since the last update " << num_recently_killed << " animals have been killed and " << num_recently_starved << " have starved\n";
+        if (num_recently_killed > 0) {
+            cout << "Sample recent kills:\n";
+            int num_to_display = min(5,num_recently_killed);
+            for (int i = 0; i < num_to_display; i++) {
+                cout << recent_kills[i][0] << " killed " << recent_kills[i][1] << "\n";
+            }
+        }
+
+        num_recently_killed = 0;
+        num_recently_starved = 0;
+        recent_kills = {};
         latest_update = new_update;
     }
 };
