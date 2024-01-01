@@ -1,3 +1,4 @@
+
 // Darwin.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 #include <iostream>
@@ -5,215 +6,262 @@
 #include <array>
 #include <random>
 #include <set>
+#include <unordered_map> 
 #include <memory>
 #include <chrono>
 #include <ctime>
 
+#undef INFINITY
 using namespace std;
+
+namespace DA
+{
+    constexpr double INFINITY = 1e29;
+    template<class T_> constexpr T_ Square(const T_& x) { return x * x; }
+    template<class C_, class P_> void Sort(C_* vals, const P_& pred)
+    {
+        std::sort(vals->begin(), vals->end(), pred);
+    }
+
+    template<class C_, class P_> void Filter(C_* c, P_ pred)
+    {
+        typedef decltype(*c->begin()) element_t;
+        auto stop = std::remove_if(c->begin(), c->end(), [&](const element_t& e) {return !pred(e); });
+        c->erase(stop, c->end());
+    }
+    // specialization for map
+    template<class K_, class V_, class P_> void Filter(unordered_map<K_, V_>* c, P_ pred)
+    {
+        for (auto p = c->begin(); p != c->end(); )
+        {
+            if (pred(*p))
+                ++p;   // keep
+            else
+                p = c->erase(p);
+        }
+    }
+
+    template<class I_, class F_>
+    I_ Most(I_ begin, I_ end, F_ func)
+    {
+        auto q = begin;
+        if (q == end)
+            return q;
+        auto best = func(*begin);
+        while (++begin != end)
+        {
+            if (auto t = func(*begin); t > best)
+            {
+                q = begin;
+                best = t;
+            }
+        }
+        return q;
+    }
+
+    template<class C_, class F_>
+    auto Most(const C_& c, F_ func)
+    {
+        return Most(c.begin(), c.end(), func);
+    }
+
+    template<class C_, class F_>
+    auto MostVal(const C_& c, F_ func)
+    {
+        return func(*Most(c.begin(), c.end(), func));
+    }
+}
+
+using move_t = array<int, 2>;
 
 namespace constants
 {
-    const double meat_nutrition = 1;
-    const double bone_nutrition = 0.5;
-    const double offal_nutrition = 0.25;
-    const double fruit_nutrition = 0.7;
-    const double grass_nutrition = 0.3;
-    const double seeds_nutrition = 0.15;
+    constexpr double meat_nutrition = 1;
+    constexpr double bone_nutrition = 0.5;
+    constexpr double offal_nutrition = 0.25;
+    constexpr double fruit_nutrition = 0.7;
+    constexpr double grass_nutrition = 0.3;
+    constexpr double seeds_nutrition = 0.15;
 
-    const int num_foods = 6;
+    constexpr int num_foods = 6;
     // IMPORTANT: MUST BE SORTED DESCENDING BY NUTRITION!
     const string food_names[num_foods] = { "Meat", "Fruit", "Bone", "Grass", "Offal", "Seeds" };
-    const array<double, num_foods> food_nutritions = { meat_nutrition, fruit_nutrition, bone_nutrition, grass_nutrition, offal_nutrition, seeds_nutrition };
-    const array<double, num_foods> food_costs = {1, 3, 4, 5, 2, 1};
-    const array<double, num_foods> food_spawn_rates = { 0, 0.0002, 0, 0.002, 0, 0.001 };
-    const array<double, num_foods> food_drop_rates = { 0.5, 0, 0.25, 0, 0.25, 0 };
-    const array<double, num_foods> food_starting_rates = { 0.01, 0.05, 0.10, 0.24, 0.17, 0.13 };
+    constexpr array<double, num_foods> food_nutritions = { meat_nutrition, fruit_nutrition, bone_nutrition, grass_nutrition, offal_nutrition, seeds_nutrition };
+    constexpr array<double, num_foods> food_costs = { 1, 3, 4, 5, 2, 1 };
+    constexpr array<double, num_foods> food_spawn_rates = { 0, 0.0002, 0, 0.002, 0, 0.001 };
+    constexpr array<double, num_foods> food_drop_rates = { 0.5, 0, 0.25, 0, 0.25, 0 };
+    constexpr array<double, num_foods> food_starting_rates = { 0.01, 0.05, 0.10, 0.24, 0.17, 0.13 };
 
-    const int max_speed = 10;
-    const int max_weapons_armor = 10;
+    constexpr int max_speed = 10;
+    constexpr int max_weapons_armor = 10;
 
-    const int num_species = 300;
+    constexpr int num_species = 300;
 
-    const double starting_reserves_ratio = 0.5;
-    const double reproduction_reserves_ratio = 2.0;
-    const double metabolic_rate = 0.01;
+    constexpr double starting_reserves_ratio = 0.5;
+    constexpr double reproduction_reserves_ratio = 2.0;
+    constexpr double metabolic_rate = 0.01;
 
-    const array<array<int, 2>, 5> dist_01_neighbors = { { {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0} } }; // why do i need a third brace?
-    const array<array<int, 2>, 8> dist_2_neighbors = { { {0,2}, {0,-2}, {2,0}, {-2,0}, {1,1}, {1,-1}, {-1,1}, {-1,-1} } };
-    
+    constexpr array<array<int, 2>, 5> dist_01_neighbors = { { {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0} } }; // why do i need a third brace?
+    constexpr array<array<int, 2>, 8> dist_2_neighbors = { { {0,2}, {0,-2}, {2,0}, {-2,0}, {1,1}, {1,-1}, {-1,1}, {-1,-1} } };
+
 }
 
 int triangle(int n)
 {
-    return(n * (n + 1) / 2);
+    return (n * (n + 1)) / 2;
 }
 
-double calc_size(int weapons, int armor, int speed, array <bool,6> edibles, bool camo)
+double calc_size(int weapons, int armor, int speed, array<bool, 6> edibles, bool camo)
 {
-    double size = 0;
-    size = size + triangle(weapons);
-    size = size + (0.5 * triangle(armor));
-    size = size + (0.5 * triangle(speed));
+    double size = triangle(weapons) + 0.5 * (triangle(armor) + triangle(speed));
 
     for (int i = 0; i < constants::num_foods; i++) {
-        size = size + (edibles[i] ? constants::food_costs[i] : 0);
+        size += edibles[i] ? constants::food_costs[i] : 0;
     }
 
-    size = size * (camo ? 2 : 1);
-    return(size);
+    size *= camo ? 2 : 1;
+    return size;
 }
 
-class Coords {
-public:
-    int row;
-    int col;
+struct Coords
+{
+    int row = -1;
+    int col = -1;
 
-    Coords() {
-        row = -1;
-        col = -1;
+    Coords& operator+=(move_t inc) {
+        row += inc[0];
+        col += inc[1];
+        return *this;
     }
 
-    Coords(int row_in, int col_in) {
-        row = row_in;
-        col = col_in;
+    double dist_from(const Coords& other) const
+    {
+        return sqrt(DA::Square(row - other.row) + DA::Square(col - other.col));
     }
 
-    Coords add_move(array<int, 2> move) {
-        return(Coords(row + move[0], col + move[1]));
-    }
-
-    double dist_from(Coords target) {
-        return(sqrt(pow(row - target.row, 2) + pow(col - target.col, 2)));
-    }
-
-    double closest_dist_to(vector<Coords> targets) {
-        double dist = 999999; // I tried making this INT_MAX and it blew up and I don't understand why
-        for (Coords target : targets) {
+    double closest_dist_to(const vector<Coords>& targets) const {
+        double dist = DA::INFINITY; // I tried making this INT_MAX and it blew up and I don't understand why
+        for (const Coords& target : targets) {
             dist = min(dist, dist_from(target));
         }
         return(dist);
     }
 };
 
-class Species {
-public:
-    int weapons;
-    int armor;
-    int speed;
-    array<bool, 6> edibles;
-    bool camo;
-    double size;
-    double runrate;
-    string name;
-    int id;
+Coords operator+(const Coords& lhs, move_t rhs)
+{
+    return Coords(lhs.row + rhs[0], lhs.col + rhs[1]);
+}
 
-    // stupid default constructor?
-    Species()
-    {
-        name = "UNDEFINED";
-    }
+
+
+struct Species {
+    int weapons_, armor_, speed_;
+    array<bool, 6> edibles_;
+    bool camo_;
+    double size_, runrate_;
+    string name_;
+    int id_;
 
     string default_name()
     {
-        string default_name = "W" + to_string(weapons) + "A" + to_string(armor) + "S" + to_string(speed);
-        if (camo)
+        string default_name = "W" + to_string(weapons_) + "A" + to_string(armor_) + "S" + to_string(speed_);
+        if (camo_)
         {
-            default_name = default_name + " Camo";
+            default_name += " Camo";
         }
-        default_name = default_name + " Eats";
+        default_name += " Eats";
         for (int i = 0; i < constants::num_foods; i++) {
-            if (edibles[i]) {
-                default_name = default_name + " " + constants::food_names[i];
+            if (edibles_[i]) {
+                default_name += " " + constants::food_names[i];
             }
         }
-        return(default_name);
+        return default_name;
     }
 
-    Species( int weapons_in, int armor_in, int speed_in, array<bool,6> edibles_in, bool camo_in, string name_in ="")
+    Species() {}
+
+    Species(int weapons, int armor, int speed, array<bool, 6> edibles, bool camo, string name = "")
+        : weapons_(weapons)
+        , armor_(armor)
+        , speed_(speed)
+        , edibles_(edibles)
+        , camo_(camo)
+        , name_(name)
     {
-        // I need to do this it seems...constructors with names equivalent are not working;
-        weapons = weapons_in;
-        armor = armor_in;
-        speed = speed_in;
-        edibles = edibles_in;
-        camo = camo_in;
-        name = name_in;
+        size_ = calc_size(weapons, armor, speed, edibles, camo);
+        runrate_ = size_ * speed * constants::metabolic_rate / constants::max_speed;
 
-        size = calc_size(weapons, armor, speed, edibles, camo);
-        runrate = size * speed * constants::metabolic_rate / constants::max_speed;
-
-        if (name == "")
+        if (name_.empty())
         {
-            name = default_name();
+            name_ = default_name();
         }
-     }
-
-    string print_details_string() {
-        return(name + " (" + to_string(id) + ") : " + default_name());
-    }
-
-    void print() {
-        cout << print_details_string() << "\n";
     }
 };
+
+ostream& operator<<(ostream& dst, Species s)
+{
+    dst << s.name_ << " (" << to_string(s.id_) << ") : " << s.default_name();
+    return dst;
+}
 
 class Animal {
 public:
-    Species species;
-    Coords coords;
-    double reserves;
-    bool alive;
-    long id;
+    Species species_;
+    Coords coords_;
+    double reserves_;
+    bool alive_;
+    long id_;
 
-    Animal() {
+    Animal() { }
 
-    }
-
-    Animal(Species species_in, Coords coords_in, long id_in) {
-        species = species_in;
-        reserves = species.size * constants::starting_reserves_ratio;
-        coords = coords_in;
-        id = id_in;
-        alive = true;
-    }
+    Animal(const Species& species, Coords coords, long id)
+        : species_(species)
+        , coords_(coords)
+        , reserves_(species.size_* constants::starting_reserves_ratio)
+        , id_(id)
+        , alive_(true)
+    {   }
 
     void exec_hunger() {
-        reserves = reserves - (constants::metabolic_rate * species.size);
+        reserves_ -= constants::metabolic_rate * species_.size_;
     }
 
-    void print() {
-        cout << "\nAnimal " << id << " Info:\n";
-        cout << "Species: " << species.print_details_string() << "\n";
-        cout << "Reserves: " << reserves << "\n";
-        cout << "Alive: " << alive << "\n";
-        cout << "Located at: (" << coords.row << "," << coords.col << ")\n\n";
+    void print(ostream& dst) const {
+        dst << "\nAnimal " << id_ << " Info:\n";
+        dst << "Species: " << species_ << "\n";
+        dst << "Reserves: " << reserves_ << "\n";
+        dst << "Alive: " << alive_ << "\n";
+        dst << "Located at: (" << coords_.row << "," << coords_.col << ")\n\n";
     }
 };
 
+ostream& operator<<(ostream& dst, const Animal& animal)
+{
+    animal.print(dst);
+    return dst;
+}
+
 class Square {
 public:
-    Coords coords;
     array<int, constants::num_foods> foods_present;
-    vector<shared_ptr<Animal>> animals_present;
-    
-    Square(Coords coords_in) {
-        coords = coords_in;
+    unordered_map<int, shared_ptr<Animal>> animals_present;
+
+    Square() {
         foods_present.fill(0);
         animals_present = {};
     }
 
     void add_animal(shared_ptr<Animal> to_add) {
-        animals_present.push_back(to_add);
+        animals_present.insert({ to_add->id_, to_add });
+    }
+
+    void clear_dead_animals() {
+        DA::Filter(&animals_present, [&](auto a) { return a.second->alive_; });
     }
 
     void clear_animal_by_id(long id) {
-        vector<shared_ptr<Animal>> remaining = {};
-        for (shared_ptr<Animal> a : animals_present) {
-            if ((*a).id != id) {
-                remaining.push_back(a);
-            }
-        }
-        animals_present = remaining;
+        animals_present.erase(id);
     }
 };
 
@@ -225,15 +273,11 @@ public:
     double largest_chaseable_prey;
     double distance_from_threat;
     bool eligible_move;
-    Coords coords;
+    Coords coords_;
 
-    SquareInfo() {
-
-    }
-
-    SquareInfo(Coords coords_in) {
-        coords = coords_in;
-    }
+    SquareInfo(Coords coords)
+        : coords_(coords)
+    { }
 };
 
 class World {
@@ -244,7 +288,7 @@ public:
     int species_defined;
     long animals_created;
     int rounds_elapsed;
-    Species species_list[constants::num_species];
+    array<Species, constants::num_species> species_list;
     array<array<bool, constants::num_species>, constants::num_species> predation_map;
     array<array<bool, constants::num_species>, constants::num_species> pursuit_map;
     std::mt19937 rng;
@@ -253,47 +297,48 @@ public:
     chrono::system_clock::time_point latest_update;
     int num_recently_killed;
     int num_recently_starved;
-    vector<array<int, 2>> recent_kills;
 
 
     World(int width_in, int height_in)
+        : width(width_in)
+        , height(height_in)
+        , size(width* height)
+        , species_defined(0)
+        , animals_created(0)
+        , rounds_elapsed(0)
     {
-        width = width_in;
-        height = height_in;
-        size = width * height;
-        species_defined = 0;
-        animals_created = 0;
-        rounds_elapsed = 0;
         setup_fixed_species();
         setup_random_species();
         sort_species_by_size();
         create_predation_maps();
         create_contents();
         spawn_foods(constants::food_starting_rates);
-      //  airdrop_animals();
+        airdrop_animals();
         latest_update = chrono::system_clock::now();
-        recent_kills = {};
     };
 
-    int get_random_number(int min, int max) {
+    bool random_bool(double prob)
+    {
+        return std::uniform_real_distribution<>(0.0, 1.0)(rng) < prob;
+    }
+
+    int random_int(int min, int max) {
         std::uniform_int_distribution<> dis(min, max);
         return(dis(rng));
     }
 
     int randomize_to_int(double input) {
-        int out = floor(input);
-        double remainder = input - out;
-        if (get_random_number(0, 100) < (remainder * 100)) { // not perfect I guess
-            out = out + 1;
-        }
+        int out = static_cast<int>(input);
+        if (out + std::uniform_real_distribution<>(0.0, 1.0)(rng) < input)
+            ++out;
         return(out);
     }
 
-    void add_species(int weapons, int armor, int speed, array<bool, 6> edibles, bool camo, string name="")
+    void add_species(int weapons, int armor, int speed, array<bool, 6> edibles, bool camo, string name = "")
     {
-        Species new_species = Species(weapons, armor, speed, edibles, camo, name);
+        Species new_species(weapons, armor, speed, edibles, camo, name);
         species_list[species_defined] = new_species;
-        species_defined++;
+        ++species_defined;
     }
 
     void setup_fixed_herbivores(array<bool, 6> edibles, string name_prefix)
@@ -316,16 +361,15 @@ public:
     {
         for (int i = 0; i < constants::num_foods; i++)
         {
-            array <bool,6> temp_edibles;
+            array<bool, 6> temp_edibles;
             temp_edibles.fill(false);
             temp_edibles[i] = true;
             setup_fixed_herbivores(temp_edibles, constants::food_names[i]);
         }
-        array<bool, 6> multiplant_edibles = { false,true,false,true,false,true };
+        constexpr array<bool, 6> multiplant_edibles = { false, true, false, true, false, true };
         setup_fixed_herbivores(multiplant_edibles, "Multiplant");
 
-        array <bool, 6> meat_only = { true, false, false, false, false, false };
-
+        constexpr array <bool, 6> meat_only = { true, false, false, false, false, false };
         for (int i = 1; i < 10; i++)
         {
             add_species(i, 0, 1, meat_only, true, "Lurker " + to_string(i));
@@ -333,7 +377,7 @@ public:
 
         for (int i = 0; i < constants::num_foods; i++)
         {
-            array<bool,6> temp_edibles = {true,false,false,false,false };
+            array<bool, 6> temp_edibles = { true,false,false,false,false };
             temp_edibles[i] = true;
             for (int j = 2; j < 10; j++)
             {
@@ -346,20 +390,17 @@ public:
     {
         while (species_defined < constants::num_species)
         {
-            int weapons = get_random_number(-2, constants::max_weapons_armor);
+            int weapons = random_int(-2, constants::max_weapons_armor);
             weapons = max(0, weapons);
-            int armor = get_random_number(0, constants::max_weapons_armor);
+            int armor = random_int(0, constants::max_weapons_armor);
             armor = armor - weapons;
             armor = max(0, armor);
-            int speed = get_random_number(1, constants::max_speed);
-            bool camo = get_random_number(1, 3) == 2 ? true : false;
-            array<bool, 6> edibles = { false, false, false, false, false, false };
-            for (int i = 0; i < 6; i++)
+            int speed = random_int(1, constants::max_speed);
+            bool camo = random_bool(1.0 / 3.0);
+            array<bool, 6> edibles;
+            for (bool& e : edibles)
             {
-                if (get_random_number(1, 3) == 2)
-                {
-                    edibles[i] = true;
-                }
+                e = random_bool(1.0 / 3.0);
             }
             add_species(weapons, armor, speed, edibles, camo, "Random Animal");
         }
@@ -367,18 +408,11 @@ public:
 
     void sort_species_by_size()
     {
-        struct by_size {
-            bool operator()(Species const& a, Species const& b) const {
-                return a.size < b.size;
-            }
-        };
+        auto by_size = [](const Species& lhs, const Species& rhs) { return lhs.size_ < rhs.size_; };
 
-        std::sort(begin(species_list), end(species_list), [](Species const& a, Species const& b) {
-            return a.size < b.size;
-        });
-
+        DA::Sort(&species_list, by_size);
         for (int i = 0; i < constants::num_species; i++) {
-            species_list[i].id = i;
+            species_list[i].id_ = i;
         }
     }
 
@@ -388,59 +422,45 @@ public:
 
         for (int a = 0; a < constants::num_species; a++)
         {
+            const Species& s_a = species_list[a];
             for (int b = 0; b < constants::num_species; b++)
             {
-                Species s_a = species_list[a];
-                Species s_b = species_list[b];
-                if (s_a.weapons > (s_b.weapons + s_b.armor)) {
-                    predation_map[a][b] = true;
-                }
-                else {
-                    predation_map[a][b] = false;
-                }
-                pursuit_map[a][b] = ((s_a.weapons > (s_b.weapons + s_b.armor)) and (s_a.speed > s_b.speed)) ? true : false;
+                const Species& s_b = species_list[b];
+                predation_map[a][b] = s_a.weapons_ > s_b.weapons_ + s_b.armor_;
+                pursuit_map[a][b] = predation_map[a][b] && s_a.speed_ > s_b.speed_;
             }
         }
     }
 
     bool is_on_map(Coords coords) {
-        if (coords.row < 0 || coords.row >= height || coords.col < 0 || coords.col >= width)
-        {
-            return(false);
-        }
-        return(true);
+        return coords.row >= 0 && coords.row < height && coords.col >= 0 && coords.col < width;
     }
 
     void create_contents() {
         for (int row = 0; row < height; row++) {
-            vector<Square> row_vector = {};
-            for (int col = 0; col < width; col++) {
-                row_vector.push_back(Coords(row, col));
-            }
-            contents.push_back(row_vector);
+            contents.push_back(vector<Square>(width));
         }
     }
 
-    void create_animal(Species species, Coords coords=Coords()) {
+    void create_animal(Species species, Coords coords = Coords()) {
         if (coords.row == -1) {
-            coords.row = get_random_number(0, height-1);
+            coords.row = random_int(0, height - 1);
         }
         if (coords.col == -1) {
-            coords.col = get_random_number(0, width-1);
+            coords.col = random_int(0, width - 1);
         }
         long id = animals_created;
         shared_ptr<Animal> new_animal = make_shared<Animal>(species, coords, id);
-        
+
         animals_created++;
         animals_list.push_back(new_animal);
-        contents[coords.row][coords.col].add_animal((new_animal));
+        contents[coords.row][coords.col].add_animal(new_animal);
     }
 
     void airdrop_animals(double capacity_fraction = 1) {
-        double capacity = get_capacity();
-        capacity *= capacity_fraction;
+        double capacity = get_capacity() * capacity_fraction;
         for (Species species : species_list) {
-            int num_to_airdrop = randomize_to_int(capacity / (species_defined * species.runrate));
+            int num_to_airdrop = randomize_to_int(capacity / (species_defined * species.runrate_));
             for (int i = 0; i < num_to_airdrop; i++) {
                 create_animal(species);
             }
@@ -448,17 +468,17 @@ public:
     }
 
     void move_animal(shared_ptr<Animal> animal, Coords coords) {
-        contents[(*animal).coords.row][(*animal).coords.col].clear_animal_by_id((*animal).id);
-        (*animal).coords = coords;
-        contents[(*animal).coords.row][(*animal).coords.col].add_animal(animal);
+        get_square_at_coords(animal->coords_).clear_animal_by_id(animal->id_);
+        animal->coords_ = coords;
+        get_square_at_coords(animal->coords_).add_animal(animal);
     }
 
     void kill_animal(shared_ptr<Animal> animal, int killer_id) {
-        (*animal).alive = false;
-        double amount_dropped = (*animal).reserves + (*animal).species.size;
+        animal->alive_ = false;
+        double amount_dropped = animal->reserves_ + animal->species_.size_;
         for (int i = 0; i < constants::num_foods; i++) {
             int food_amount_dropped = randomize_to_int(amount_dropped * constants::food_drop_rates[i] / constants::food_nutritions[i]);
-            contents[(*animal).coords.row][(*animal).coords.col].foods_present[i] += food_amount_dropped;
+            contents[animal->coords_.row][animal->coords_.col].foods_present[i] += food_amount_dropped;
         }
 
         if (killer_id == -1) {
@@ -466,52 +486,47 @@ public:
         }
         else {
             num_recently_killed++;
-            recent_kills.push_back({ killer_id, (*animal).species.id });
         }
     }
 
     void breed_animal(shared_ptr<Animal> animal) {
-        (*animal).reserves -= ((*animal).species.size * (1+constants::starting_reserves_ratio));
-        create_animal((*animal).species, (*animal).coords);
+        animal->reserves_ -= animal->species_.size_ * (1 + constants::starting_reserves_ratio);
+        create_animal(animal->species_, animal->coords_);
     }
 
-    Square get_square_at_coords(Coords coords) {
-        return(contents[coords.row][coords.col]);
-    }
-
-    Square get_random_square() {
-        return(Coords(get_random_number(0, height), get_random_number(0, width)));
+    Square& get_square_at_coords(Coords coords) {
+        return contents[coords.row][coords.col];
     }
 
     SquareInfo get_square_info(shared_ptr<Animal> animal, Coords coords, bool is_within_1) {
-        Square square = get_square_at_coords(coords);
+        Square& square = get_square_at_coords(coords);
         SquareInfo info = SquareInfo(coords);
         info.eligible_move = is_within_1;
         info.visible_threat = false;
         info.best_food = 0;
         info.largest_visible_prey = 0;
         info.largest_chaseable_prey = 0;
-    
+
         Animal seen_animal_details;
-        for (shared_ptr<Animal> seen_animal : square.animals_present) {
+        for (auto [id, seen_animal] : square.animals_present) {
             seen_animal_details = *seen_animal;
-            if (is_within_1 || !seen_animal_details.species.camo) {
-                if (seen_animal_details.alive) {
-                    if (predation_map[seen_animal_details.species.id][(*animal).species.id]) {
+            if (is_within_1 || !seen_animal_details.species_.camo_) {
+                if (seen_animal_details.alive_) {
+                    if (predation_map[seen_animal_details.species_.id_][animal->species_.id_]) {
                         info.visible_threat = true;
                     }
-                    if (predation_map[(*animal).species.id][seen_animal_details.species.id]) {
-                        info.largest_visible_prey = max(info.largest_visible_prey, seen_animal_details.species.size);
+                    if (predation_map[animal->species_.id_][seen_animal_details.species_.id_]) {
+                        info.largest_visible_prey = max(info.largest_visible_prey, seen_animal_details.species_.size_);
                     }
-                    if (pursuit_map[(*animal).species.id][seen_animal_details.species.id]) {
-                        info.largest_chaseable_prey = max(info.largest_visible_prey, seen_animal_details.species.size);
+                    if (pursuit_map[animal->species_.id_][seen_animal_details.species_.id_]) {
+                        info.largest_chaseable_prey = max(info.largest_visible_prey, seen_animal_details.species_.size_);
                     }
                 }
             }
         }
         if (is_within_1) {
             for (int food_id = 0; food_id < constants::num_foods; food_id++) {
-                if ((*animal).species.edibles[food_id] && square.foods_present[food_id])
+                if (animal->species_.edibles_[food_id] && square.foods_present[food_id])
                     info.best_food = max(info.best_food, constants::food_nutritions[food_id]);
             }
         }
@@ -522,24 +537,24 @@ public:
     vector<SquareInfo> get_vision(shared_ptr<Animal> animal) {
         vector<SquareInfo> output = {};
         for (array<int, 2> m : constants::dist_01_neighbors) {
-            Coords new_coords = (*animal).coords.add_move(m);
-            if(is_on_map(new_coords))
+            Coords new_coords = animal->coords_ + m;
+            if (is_on_map(new_coords))
                 output.push_back(get_square_info(animal, new_coords, true));
         }
         for (array<int, 2> m : constants::dist_2_neighbors) {
-            Coords new_coords = (*animal).coords.add_move(m);
+            Coords new_coords = animal->coords_ + m;
             if (is_on_map(new_coords))
                 output.push_back(get_square_info(animal, new_coords, false));
         }
         vector<Coords> visible_threats;
         for (const SquareInfo& temp_info : output) {
             if (temp_info.visible_threat) {
-                visible_threats.push_back(temp_info.coords);
+                visible_threats.push_back(temp_info.coords_);
             }
         }
 
-        for (SquareInfo &temp_info : output) {
-            temp_info.distance_from_threat = temp_info.coords.closest_dist_to(visible_threats);
+        for (SquareInfo& temp_info : output) {
+            temp_info.distance_from_threat = temp_info.coords_.closest_dist_to(visible_threats);
         }
 
         return(output);
@@ -556,177 +571,136 @@ public:
         return(active_speeds);
     }
 
-    vector<int> get_animal_counts() {
+    vector<int> animal_counts() {
         vector<int> counts(species_defined, 0);
 
         for (shared_ptr<Animal> a : animals_list) {
-            counts[(*a).species.id]++;
+            counts[a->species_.id_]++;
         }
 
-        return(counts);
+        return counts;
     }
 
     void sort_animals_by_initiative() {
         // several sorts that go in increasing order of importance
         shuffle(animals_list.begin(), animals_list.end(), rng);
 
-        sort(begin(animals_list), end(animals_list), [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
-            return (*a).species.weapons < (*b).species.weapons;
-        });
+        DA::Sort(&animals_list, [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
+            return a->species_.weapons_ < b->species_.weapons_;
+            });
 
-        sort(begin(animals_list), end(animals_list), [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
-            return (*a).species.size < (*b).species.size;
-        });
-        
-        sort(begin(animals_list), end(animals_list), [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
-            return (*a).species.speed > (*b).species.speed;
-        });
+        DA::Sort(&animals_list, [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
+            return a->species_.size_ < b->species_.size_;
+            });
+
+        DA::Sort(&animals_list, [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
+            return a->species_.speed_ > b->species_.speed_;
+            });
     }
 
     void perform_move(shared_ptr<Animal> animal) {
-        vector<SquareInfo> vision = get_vision(animal);
-        vector<SquareInfo> moves;
-        for (const SquareInfo& si : vision) {
-            if (si.eligible_move) {
-                moves.push_back(si);
-            }
-        }
+        vector<SquareInfo> vision = get_vision(animal), moves = vision;
+        DA::Filter(&moves, [](const SquareInfo& si) { return si.eligible_move; });
 
         // require best distance from threat.
-        double best_threat_dist = 0;
-        for (const SquareInfo& si : moves) {
-            if (si.distance_from_threat > best_threat_dist) {
-                best_threat_dist = si.distance_from_threat;
-            }
-        }
-        best_threat_dist = min(best_threat_dist, double(2.1)); // we accept anything >2
+        if (moves.size() > 1)
+        {
+            auto pBest = DA::Most(moves, [](const SquareInfo& si) { return si.distance_from_threat; });
+            double best_threat_dist = min(pBest->distance_from_threat, double(2.1)); // we accept anything >2
 
-        vector<SquareInfo> best_moves;
-        for (const SquareInfo& si : moves) {
-            if (si.distance_from_threat >= best_threat_dist) {
-                best_moves.push_back(si);
-            }
+            DA::Filter(&moves, [=](const SquareInfo& si) { return si.distance_from_threat >= best_threat_dist; });
         }
-        moves = best_moves;
-        
-        
+
         // at equality, require largest killable prey
-        double best_prey = 0;
-        for (const SquareInfo& si : moves) {
-            if (si.largest_visible_prey > best_prey) {
-                best_prey = si.largest_visible_prey;
-            }
+        if (moves.size() > 1)
+        {
+            double bestPrey = DA::MostVal(moves, [](const SquareInfo& si) { return si.largest_visible_prey; });
+            DA::Filter(&moves, [=](const SquareInfo& si) { return si.largest_visible_prey >= bestPrey; });
         }
-        best_moves = {};
-        for (const SquareInfo& si : moves) {
-            if (si.largest_visible_prey >= best_prey) {
-                best_moves.push_back(si);
-            }
-        }
-        moves = best_moves;
 
         // at equality, require best food available
-        double best_food = 0;
-        for (const SquareInfo& si : moves) {
-            if (si.best_food > best_food) {
-                best_food = si.best_food;
-            }
+        if (moves.size() > 1)
+        {
+            double bestFood = DA::MostVal(moves, [](const SquareInfo& si) { return si.best_food; });
+            DA::Filter(&moves, [=](const SquareInfo& si) { return si.best_food >= bestFood; });
         }
-        best_moves = {};
-        for (const SquareInfo& si : moves) {
-            if (si.best_food >= best_food) {
-                best_moves.push_back(si);
-            }
-        }
-        moves = best_moves;
 
         // if no food is available and multiple squares under consideration, look for chaseable prey.
-        if (best_food == 0 && moves.size() > 1) {
-            double best_chase = 0;
-            for (const SquareInfo& si : vision) {
-                if (si.largest_chaseable_prey > best_chase) {
-                    best_prey = si.largest_chaseable_prey;
-                }
-            }
+        if (moves.size() > 1 && moves.front().best_food == 0)
+        {
+            double bestPrey = DA::MostVal(moves, [](const SquareInfo& si) { return si.largest_chaseable_prey; });
+
             vector<Coords> chase_locations;
             for (const SquareInfo& si : vision) {
-                if (si.largest_chaseable_prey >= best_chase) {
-                    chase_locations.push_back(si.coords);        
+                if (si.largest_chaseable_prey >= bestPrey) {
+                    chase_locations.push_back(si.coords_);
                 }
-            }
-            
-            double best_chase_dist = 999999;
-            for (SquareInfo si : moves) {
-                double chase_dist = si.coords.closest_dist_to(chase_locations);
-                best_chase_dist = min(best_chase_dist, chase_dist);
             }
 
-            vector<SquareInfo> best_moves;
-            for (SquareInfo si : moves) {
-                double chase_dist = si.coords.closest_dist_to(chase_locations);
-                if (chase_dist <= best_chase_dist) {
-                    best_moves.push_back(si);
-                }
-            }
-            moves = best_moves;
+            auto negDist = [&](const SquareInfo& si) { return -si.coords_.closest_dist_to(chase_locations); };
+            double minDist = -DA::MostVal(moves, negDist);
+            DA::Filter(&moves, [&](const SquareInfo& si) { return negDist(si) >= -minDist; });
         }
-        move_animal(animal, moves[get_random_number(0, moves.size() - 1)].coords);
+        auto pMove = moves.begin();
+        if (moves.size() > 1)
+            pMove += random_int(0, static_cast<int>(moves.size()) - 1);
+        move_animal(animal, pMove->coords_);
     }
 
-    void perform_fight(shared_ptr<Animal> animal) {
-        Square square = get_square_at_coords((*animal).coords);
+    void perform_fight(shared_ptr<Animal> animal)
+    {
+        const Square& square = get_square_at_coords(animal->coords_);
         double largest_prey = 0;
         shared_ptr<Animal> to_eat;
 
-        Animal target_details;
-        for (shared_ptr<Animal> target : square.animals_present) {
-            target_details = *target;
-            if ((target_details.alive && (predation_map[(*animal).species.id][target_details.species.id])) && (target_details.species.size > largest_prey)) {
-                largest_prey = target_details.species.size;
+        for (auto [id, target] : square.animals_present) {
+            if (target->alive_ && predation_map[animal->species_.id_][target->species_.id_] && target->species_.size_ > largest_prey)
+            {
+                largest_prey = target->species_.size_;
                 to_eat = target;
             }
         }
 
         if (largest_prey > 0) {
-            kill_animal(to_eat, (*animal).species.id);
+            kill_animal(to_eat, animal->species_.id_);
         }
     }
 
-    void perform_feed(shared_ptr<Animal> animal) {
-        Square square = get_square_at_coords((*animal).coords);
+    void perform_feed(shared_ptr<Animal> animal)
+    {
+        const Square& square = get_square_at_coords(animal->coords_);
         for (int food_id = 0; food_id < constants::num_foods; food_id++) {
-            if ((square.foods_present[food_id] > 0) && ((*animal).species.edibles[food_id] == true)) {
-                contents[(*animal).coords.row][(*animal).coords.col].foods_present[food_id]--;
-                (*animal).reserves += constants::food_nutritions[food_id];
+            if ((square.foods_present[food_id] > 0) && (animal->species_.edibles_[food_id] == true)) {
+                contents[animal->coords_.row][animal->coords_.col].foods_present[food_id]--;
+                animal->reserves_ += constants::food_nutritions[food_id];
                 return;
             }
         }
     }
 
-    void perform_action(shared_ptr<Animal> animal) {
-        if (!((*animal).alive)) {
-            return;
+    void perform_action(const shared_ptr<Animal>& animal)
+    {
+        if (animal->alive_)
+        {
+            perform_move(animal);
+            perform_fight(animal);
+            perform_feed(animal);
         }
-
-        perform_move(animal);
-        perform_fight(animal);
-        perform_feed(animal);
     }
 
-    double get_capacity() {
+    double get_capacity()
+    {
         double capacity = 0;
-        for (int i = 0; i < constants::num_foods; i++) {
-            capacity += (constants::food_nutritions[i] * size * constants::food_spawn_rates[i]);
-        }
-
-        return(capacity);
+        for (int i = 0; i < constants::num_foods; i++)
+            capacity += constants::food_nutritions[i] * size * constants::food_spawn_rates[i];
+        return capacity;
     }
 
     int get_random_row() {
-        return(get_random_number(0, height - 1));
+        return(random_int(0, height - 1));
     }
     int get_random_col() {
-        return(get_random_number(0, width - 1));
+        return(random_int(0, width - 1));
     }
 
     void spawn_foods(array<double, constants::num_foods> spawn_rates) {
@@ -746,24 +720,20 @@ public:
         sort_animals_by_initiative();
         set<int> speeds = get_active_speeds();
         for (shared_ptr<Animal> a : animals_list) {
-            if (speeds.find((*a).species.speed) != speeds.end()) {
+            if (speeds.count(a->species_.speed_)) {
                 perform_action(a);
-                (*a).exec_hunger();
+                a->exec_hunger();
             }
         }
     }
-    
+
     void exec_breeding_starvation() {
         vector<shared_ptr<Animal>> to_breed = {};
         for (shared_ptr<Animal> a : animals_list) {
-            if ((*a).alive) {
-                if ((*a).reserves <= 0) {
-                    kill_animal(a, -1);
-                }
-                if ((*a).reserves >= (constants::reproduction_reserves_ratio * (*a).species.size)) {
-                    to_breed.push_back(a);
-                }
-            }
+            if (a->reserves_ <= 0)
+                kill_animal(a, -1);
+            else if (a->reserves_ >= constants::reproduction_reserves_ratio * a->species_.size_)
+                to_breed.push_back(a);
         }
         for (shared_ptr<Animal> breeder : to_breed) {
             breed_animal(breeder);
@@ -771,26 +741,26 @@ public:
     }
 
     void clear_dead_animals() {
-        vector<shared_ptr<Animal>> surviving_animals = {};
-        for (shared_ptr<Animal> a : animals_list) {
-            if ((*a).alive) {
-                surviving_animals.push_back(a);
-            }
-            else {
-                contents[(*a).coords.row][(*a).coords.col].clear_animal_by_id((*a).id);
+        DA::Filter(&animals_list, [&](auto a) { return a->alive_; });
+        for (vector<Square>& row : contents) {
+            for (Square& square : row) {
+                square.clear_dead_animals();
             }
         }
-        animals_list = surviving_animals;
     }
 
     void exec_round() {
         exec_growth();
         exec_actions();
+        clear_dead_animals();
         exec_breeding_starvation();
         clear_dead_animals();
         rounds_elapsed++;
-        if (rounds_elapsed % 500 == 0) {
+        if (rounds_elapsed % 1000 == 0) {
             print_status();
+        }
+        if (rounds_elapsed < 1e5) {
+            airdrop_animals(1e-5);
         }
     }
 
@@ -799,7 +769,7 @@ public:
         abundances.fill(0);
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
-                for(int food_id = 0;food_id < constants::num_foods; food_id++) {
+                for (int food_id = 0; food_id < constants::num_foods; food_id++) {
                     abundances[food_id] += contents[row][col].foods_present[food_id];
                 }
             }
@@ -812,19 +782,19 @@ public:
 
     void print_status() {
         auto new_update = chrono::system_clock::now();
-        cout << "\n\n\nStatus after round " << rounds_elapsed << ", " << chrono::duration_cast<chrono::seconds>(new_update-latest_update).count() << "s elapsed since last update:\n";
-        vector<int> counts = get_animal_counts();
+        cout << "\n\n\nStatus after round " << rounds_elapsed << ", " << chrono::duration_cast<chrono::seconds>(new_update - latest_update).count() << "s elapsed since last update:\n";
+        vector<int> counts = animal_counts();
         double runrate_used = 0;
         int total_animals = 0;
         for (int i = 0; i < species_defined; i++) {
-            runrate_used += (species_list[i].runrate * counts[i]);
+            runrate_used += (species_list[i].runrate_ * counts[i]);
             total_animals += counts[i];
         }
-        cout << total_animals << " alive, current metabolic runrate is at " << (runrate_used * 100)/get_capacity() << "% of capacity\n";
+        cout << total_animals << " alive, current metabolic runrate is at " << (runrate_used * 100) / get_capacity() << "% of capacity\n";
 
         for (int i = 0; i < species_defined; i++) {
-            if (counts[i] >= 10) {
-                cout << species_list[i].print_details_string() << " has population " << counts[i] << "\n";
+            if (counts[i] >= 20) {
+                cout << species_list[i] << " has population " << counts[i] << "\n";
             }
         }
         auto abundances = food_abundances();
@@ -832,53 +802,21 @@ public:
             cout << "Current abundance of " << constants::food_names[i] << " is " << abundances[i] << "\n";
         }
         cout << "Since the last update " << num_recently_killed << " animals have been killed and " << num_recently_starved << " have starved\n";
-        if (num_recently_killed > 0) {
-            cout << "Sample recent kills:\n";
-            int num_to_display = min(5,num_recently_killed);
-            for (int i = 0; i < num_to_display; i++) {
-                cout << recent_kills[i][0] << " killed " << recent_kills[i][1] << "\n";
-            }
-        }
-
         num_recently_killed = 0;
         num_recently_starved = 0;
-        recent_kills = {};
+
         latest_update = new_update;
     }
 };
 
 int main()
 {
-    World my_world = World(5, 5);
-    my_world.create_animal(my_world.species_list[1], Coords(0, 0));
-    my_world.create_animal(my_world.species_list[64], Coords(0, 1));
-    my_world.create_animal(my_world.species_list[28], Coords(0, 2));
+    World my_world = World(500, 500);
+    my_world.print_status();
 
-
-    vector<vector<SquareInfo>> visions = {};
-    for (shared_ptr<Animal> a : my_world.animals_list) {
-        (*a).print();
-    }
-
-    for (int i = 0; i < 10; i++) {
-        cout << "Executing Round " << i + 1 << "\n";
+    for (int i = 0; i < 1e6; i++)
         my_world.exec_round();
-        for (shared_ptr<Animal> a : my_world.animals_list) {
-            (*a).print();
-        }
-    }
 
-    for (shared_ptr<Animal> a : my_world.animals_list) {
-        visions.push_back(my_world.get_vision(a));
-    }
-
-    int x = 2;
-    
-    //my_world.print_status();
-
-    //for (int i = 0; i < 100000; i++)
-    //    my_world.exec_round();
-        
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
