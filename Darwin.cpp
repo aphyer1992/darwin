@@ -6,6 +6,8 @@
 #include <array>
 #include <random>
 #include <set>
+#include <map>
+#include <list>
 #include <unordered_map> 
 #include <memory>
 #include <chrono>
@@ -20,13 +22,13 @@ namespace DA
     template<class T_> constexpr T_ Square(const T_& x) { return x * x; }
     template<class C_, class P_> void Sort(C_* vals, const P_& pred)
     {
-        std::sort(vals->begin(), vals->end(), pred);
+        sort(vals->begin(), vals->end(), pred);
     }
 
     template<class C_, class P_> void Filter(C_* c, P_ pred)
     {
         typedef decltype(*c->begin()) element_t;
-        auto stop = std::remove_if(c->begin(), c->end(), [&](const element_t& e) {return !pred(e); });
+        auto stop = remove_if(c->begin(), c->end(), [&](const element_t& e) {return !pred(e); });
         c->erase(stop, c->end());
     }
     // specialization for map
@@ -39,6 +41,21 @@ namespace DA
             else
                 p = c->erase(p);
         }
+    }
+    template<class K_, class V_, class P_> void Filter(map<K_, V_>* c, P_ pred)
+    {
+        for (auto p = c->begin(); p != c->end(); )
+        {
+            if (pred(*p))
+                ++p;   // keep
+            else
+                p = c->erase(p);
+        }
+    }
+    // and for list
+    template<class E_, class P_> void Filter(list<E_>* c, P_ pred)
+    {
+        erase_if(*c, [&](const E_& x) { return !pred(x); });
     }
 
     template<class I_, class F_>
@@ -63,6 +80,13 @@ namespace DA
     auto Most(const C_& c, F_ func)
     {
         return Most(c.begin(), c.end(), func);
+    }
+
+
+    template<class I_, class F_>
+    auto MostVal(I_ begin, I_ end, F_ func)
+    {
+        return func(*Most(begin, end, func));
     }
 
     template<class C_, class F_>
@@ -93,6 +117,7 @@ namespace constants
     constexpr array<double, num_foods> food_starting_rates = { 0.01, 0.05, 0.10, 0.24, 0.17, 0.13 };
 
     constexpr int max_speed = 10;
+    constexpr int max_size = 1000;
     constexpr int max_weapons_armor = 10;
 
     constexpr int num_species = 300;
@@ -139,7 +164,8 @@ struct Coords
         return sqrt(DA::Square(row - other.row) + DA::Square(col - other.col));
     }
 
-    double closest_dist_to(const vector<Coords>& targets) const {
+    double closest_dist_to(const vector<Coords>& targets) const
+    {
         double dist = DA::INFINITY; // I tried making this INT_MAX and it blew up and I don't understand why
         for (const Coords& target : targets) {
             dist = min(dist, dist_from(target));
@@ -155,13 +181,14 @@ Coords operator+(const Coords& lhs, move_t rhs)
 
 
 
-struct Species {
+struct Species
+{
+    string name_;
+    double size_, runrate_, initiative_;
     int weapons_, armor_, speed_;
+    int id_;
     array<bool, 6> edibles_;
     bool camo_;
-    double size_, runrate_;
-    string name_;
-    int id_;
 
     string default_name()
     {
@@ -182,20 +209,19 @@ struct Species {
     Species() {}
 
     Species(int weapons, int armor, int speed, array<bool, 6> edibles, bool camo, string name = "")
-        : weapons_(weapons)
+        : name_(name)
+        , weapons_(weapons)
         , armor_(armor)
         , speed_(speed)
         , edibles_(edibles)
         , camo_(camo)
-        , name_(name)
     {
         size_ = calc_size(weapons, armor, speed, edibles, camo);
         runrate_ = size_ * speed * constants::metabolic_rate / constants::max_speed;
+        initiative_ = -weapons_ + constants::max_weapons_armor * (-size_ + constants::max_size * speed_);
 
         if (name_.empty())
-        {
             name_ = default_name();
-        }
     }
 };
 
@@ -205,26 +231,36 @@ ostream& operator<<(ostream& dst, Species s)
     return dst;
 }
 
-class Animal {
+class Animal
+{
 public:
-    Species species_;
+    const Species* species_;
     Coords coords_;
     double reserves_;
-    bool alive_;
     long id_;
+    bool alive_;
 
     Animal() { }
 
-    Animal(const Species& species, Coords coords, long id)
+    void Reset(const Species* species, Coords coords, long id)
+    {
+        species_ = species;
+        coords_ = coords;
+        id_ = id;
+        reserves_ = species->size_ * constants::starting_reserves_ratio;
+        alive_ = true;
+    }
+
+    Animal(const Species* species, Coords coords, long id)
         : species_(species)
         , coords_(coords)
-        , reserves_(species.size_* constants::starting_reserves_ratio)
+        , reserves_(species->size_* constants::starting_reserves_ratio)
         , id_(id)
         , alive_(true)
     {   }
 
     void exec_hunger() {
-        reserves_ -= constants::metabolic_rate * species_.size_;
+        reserves_ -= constants::metabolic_rate * species_->size_;
     }
 
     void print(ostream& dst) const {
@@ -236,6 +272,7 @@ public:
     }
 };
 
+
 ostream& operator<<(ostream& dst, const Animal& animal)
 {
     animal.print(dst);
@@ -245,40 +282,93 @@ ostream& operator<<(ostream& dst, const Animal& animal)
 class Square {
 public:
     array<int, constants::num_foods> foods_present;
-    unordered_map<int, shared_ptr<Animal>> animals_present;
+    list<shared_ptr<Animal>> animals_present;
 
     Square() {
         foods_present.fill(0);
         animals_present = {};
     }
 
-    void add_animal(shared_ptr<Animal> to_add) {
-        animals_present.insert({ to_add->id_, to_add });
+    void add_animal(shared_ptr<Animal> to_add)
+    {
+        auto p = find_if(animals_present.begin(), animals_present.end(), [](const auto& a) { return !a->alive_; });
+        if (p == animals_present.end())
+            animals_present.push_back(to_add);
+        else
+            *p = to_add;
     }
 
     void clear_dead_animals() {
-        DA::Filter(&animals_present, [&](auto a) { return a.second->alive_; });
+        DA::Filter(&animals_present, [&](auto a) { return a->alive_; });
     }
 
-    void clear_animal_by_id(long id) {
-        animals_present.erase(id);
+    inline void clear_animal_by_id(long id) {
+        auto p = find_if(animals_present.begin(), animals_present.end(), [&](auto a) { return a->id_ == id; });
+        // this will fail if we try to clear an animal that isn't here
+        animals_present.erase(p);
     }
 };
 
-class SquareInfo {
-public:
-    bool visible_threat;
+struct SquareInfo
+{
     double best_food;
     double largest_visible_prey;
     double largest_chaseable_prey;
     double distance_from_threat;
-    bool eligible_move;
     Coords coords_;
+    bool eligible_move;
+    bool visible_threat;
 
     SquareInfo(Coords coords)
         : coords_(coords)
     { }
 };
+
+struct Workspace_
+{
+    vector<SquareInfo> moves_;
+    vector<Coords> chase_;
+
+    void Reset()
+    {
+        moves_.clear();
+        chase_.clear();
+    }
+};
+
+bool Quicker1(const shared_ptr<Animal>& lhs, const shared_ptr<Animal>& rhs)
+{
+    if (lhs->species_->speed_ != rhs->species_->speed_)
+        return lhs->species_->speed_ > rhs->species_->speed_;
+    if (lhs->species_->size_ != rhs->species_->size_)
+        return lhs->species_->size_ < rhs->species_->size_;
+    return lhs->species_->weapons_ < rhs->species_->weapons_;
+}
+
+
+double Quickness(const Species& s)
+{
+    return -s.weapons_ + constants::max_weapons_armor * (-s.size_ + constants::max_size * s.speed_);
+}
+
+bool Quicker2(const shared_ptr<Animal>& lhs, const shared_ptr<Animal>& rhs)
+{
+    return lhs->species_->initiative_ > rhs->species_->initiative_;
+}
+
+constexpr array<array<bool, constants::max_speed + 1>, constants::max_speed> make_active_speeds()
+{
+    array<array<bool, constants::max_speed + 1>, constants::max_speed> retval;
+    for (int round_no = 0; round_no < constants::max_speed; ++round_no)
+    {
+        for (int speed = 0; speed < constants::max_speed; speed++)
+            retval[round_no][speed] = ((speed * round_no) % constants::max_speed) + speed >= constants::max_speed;
+        retval[round_no][constants::max_speed] = true;
+    }
+    return retval;
+}
+
+constexpr array<array<bool, constants::max_speed + 1>, constants::max_speed> active_speeds = make_active_speeds();
 
 class World {
 public:
@@ -291,9 +381,9 @@ public:
     array<Species, constants::num_species> species_list;
     array<array<bool, constants::num_species>, constants::num_species> predation_map;
     array<array<bool, constants::num_species>, constants::num_species> pursuit_map;
-    std::mt19937 rng;
+    mt19937 rng;
     vector<vector<Square>> contents;
-    vector<shared_ptr<Animal>> animals_list;
+    vector<shared_ptr<Animal>> animals_list, recycle;
     chrono::system_clock::time_point latest_update;
     int num_recently_killed;
     int num_recently_starved;
@@ -319,17 +409,17 @@ public:
 
     bool random_bool(double prob)
     {
-        return std::uniform_real_distribution<>(0.0, 1.0)(rng) < prob;
+        return uniform_real_distribution<>(0.0, 1.0)(rng) < prob;
     }
 
     int random_int(int min, int max) {
-        std::uniform_int_distribution<> dis(min, max);
+        uniform_int_distribution<> dis(min, max);
         return(dis(rng));
     }
 
     int randomize_to_int(double input) {
         int out = static_cast<int>(input);
-        if (out + std::uniform_real_distribution<>(0.0, 1.0)(rng) < input)
+        if (out + uniform_real_distribution<>(0.0, 1.0)(rng) < input)
             ++out;
         return(out);
     }
@@ -432,7 +522,7 @@ public:
         }
     }
 
-    bool is_on_map(Coords coords) {
+    inline bool is_on_map(Coords coords) {
         return coords.row >= 0 && coords.row < height && coords.col >= 0 && coords.col < width;
     }
 
@@ -442,7 +532,7 @@ public:
         }
     }
 
-    void create_animal(Species species, Coords coords = Coords()) {
+    void create_animal(const Species* species, Coords coords = Coords()) {
         if (coords.row == -1) {
             coords.row = random_int(0, height - 1);
         }
@@ -450,7 +540,15 @@ public:
             coords.col = random_int(0, width - 1);
         }
         long id = animals_created;
-        shared_ptr<Animal> new_animal = make_shared<Animal>(species, coords, id);
+        shared_ptr<Animal> new_animal;
+        if (recycle.empty())
+            new_animal = make_shared<Animal>(species, coords, id);
+        else
+        {
+            new_animal = recycle.back();
+            new_animal->Reset(species, coords, id);
+            recycle.pop_back();
+        }
 
         animals_created++;
         animals_list.push_back(new_animal);
@@ -459,12 +557,16 @@ public:
 
     void airdrop_animals(double capacity_fraction = 1) {
         double capacity = get_capacity() * capacity_fraction;
-        for (Species species : species_list) {
+        for (const Species& species : species_list) {
             int num_to_airdrop = randomize_to_int(capacity / (species_defined * species.runrate_));
             for (int i = 0; i < num_to_airdrop; i++) {
-                create_animal(species);
+                create_animal(&species);
             }
         }
+    }
+
+    inline Square& get_square_at_coords(Coords coords) {
+        return contents[coords.row][coords.col];
     }
 
     void move_animal(shared_ptr<Animal> animal, Coords coords) {
@@ -475,7 +577,7 @@ public:
 
     void kill_animal(shared_ptr<Animal> animal, int killer_id) {
         animal->alive_ = false;
-        double amount_dropped = animal->reserves_ + animal->species_.size_;
+        double amount_dropped = animal->reserves_ + animal->species_->size_;
         for (int i = 0; i < constants::num_foods; i++) {
             int food_amount_dropped = randomize_to_int(amount_dropped * constants::food_drop_rates[i] / constants::food_nutritions[i]);
             contents[animal->coords_.row][animal->coords_.col].foods_present[i] += food_amount_dropped;
@@ -490,187 +592,150 @@ public:
     }
 
     void breed_animal(shared_ptr<Animal> animal) {
-        animal->reserves_ -= animal->species_.size_ * (1 + constants::starting_reserves_ratio);
+        animal->reserves_ -= animal->species_->size_ * (1 + constants::starting_reserves_ratio);
         create_animal(animal->species_, animal->coords_);
-    }
-
-    Square& get_square_at_coords(Coords coords) {
-        return contents[coords.row][coords.col];
     }
 
     SquareInfo get_square_info(shared_ptr<Animal> animal, Coords coords, bool is_within_1) {
         Square& square = get_square_at_coords(coords);
-        SquareInfo info = SquareInfo(coords);
+        SquareInfo info(coords);
         info.eligible_move = is_within_1;
         info.visible_threat = false;
-        info.best_food = 0;
         info.largest_visible_prey = 0;
         info.largest_chaseable_prey = 0;
 
-        Animal seen_animal_details;
-        for (auto [id, seen_animal] : square.animals_present) {
-            seen_animal_details = *seen_animal;
-            if (is_within_1 || !seen_animal_details.species_.camo_) {
-                if (seen_animal_details.alive_) {
-                    if (predation_map[seen_animal_details.species_.id_][animal->species_.id_]) {
-                        info.visible_threat = true;
-                    }
-                    if (predation_map[animal->species_.id_][seen_animal_details.species_.id_]) {
-                        info.largest_visible_prey = max(info.largest_visible_prey, seen_animal_details.species_.size_);
-                    }
-                    if (pursuit_map[animal->species_.id_][seen_animal_details.species_.id_]) {
-                        info.largest_chaseable_prey = max(info.largest_visible_prey, seen_animal_details.species_.size_);
+        for (const auto& seen_animal : square.animals_present)
+        {
+            if (!seen_animal->alive_)
+                continue;
+            if (is_within_1 || !seen_animal->species_->camo_)
+            {
+                if (predation_map[seen_animal->species_->id_][animal->species_->id_]) {
+                    info.visible_threat = true;
+                }
+                if (predation_map[animal->species_->id_][seen_animal->species_->id_]) {
+                    info.largest_visible_prey = max(info.largest_visible_prey, seen_animal->species_->size_);
+                    if (pursuit_map[animal->species_->id_][seen_animal->species_->id_]) {
+                        info.largest_chaseable_prey = max(info.largest_visible_prey, seen_animal->species_->size_);
                     }
                 }
             }
         }
-        if (is_within_1) {
-            for (int food_id = 0; food_id < constants::num_foods; food_id++) {
-                if (animal->species_.edibles_[food_id] && square.foods_present[food_id])
-                    info.best_food = max(info.best_food, constants::food_nutritions[food_id]);
-            }
-        }
 
-        return(info);
+        return info;
     }
 
-    vector<SquareInfo> get_vision(shared_ptr<Animal> animal) {
-        vector<SquareInfo> output = {};
-        for (array<int, 2> m : constants::dist_01_neighbors) {
+    void get_vision(shared_ptr<Animal> animal, vector<SquareInfo>* vision)
+    {
+        for (const array<int, 2>&m : constants::dist_01_neighbors) {
             Coords new_coords = animal->coords_ + m;
             if (is_on_map(new_coords))
-                output.push_back(get_square_info(animal, new_coords, true));
+                vision->push_back(get_square_info(animal, new_coords, true));
         }
-        for (array<int, 2> m : constants::dist_2_neighbors) {
+        for (const array<int, 2>&m : constants::dist_2_neighbors) {
             Coords new_coords = animal->coords_ + m;
             if (is_on_map(new_coords))
-                output.push_back(get_square_info(animal, new_coords, false));
+                vision->push_back(get_square_info(animal, new_coords, false));
         }
         vector<Coords> visible_threats;
-        for (const SquareInfo& temp_info : output) {
+        for (const SquareInfo& temp_info : *vision) {
             if (temp_info.visible_threat) {
                 visible_threats.push_back(temp_info.coords_);
             }
         }
 
-        for (SquareInfo& temp_info : output) {
+        for (SquareInfo& temp_info : *vision) {
             temp_info.distance_from_threat = temp_info.coords_.closest_dist_to(visible_threats);
         }
-
-        return(output);
     }
 
-    set<int> get_active_speeds() {
-        int round_no = rounds_elapsed % constants::max_speed;
-        set<int> active_speeds;
-        for (int speed = 1; speed <= constants::max_speed; speed++) {
-            if (floor((speed * round_no) / constants::max_speed) < floor((speed * (round_no + 1)) / constants::max_speed)) {
-                active_speeds.insert(speed);
-            }
-        }
-        return(active_speeds);
-    }
-
-    vector<int> animal_counts() {
+    vector<int> animal_counts()
+    {
         vector<int> counts(species_defined, 0);
-
-        for (shared_ptr<Animal> a : animals_list) {
-            counts[a->species_.id_]++;
-        }
-
+        for (const shared_ptr<Animal>& a : animals_list)
+            counts[a->species_->id_]++;
         return counts;
     }
 
     void sort_animals_by_initiative() {
         // several sorts that go in increasing order of importance
         shuffle(animals_list.begin(), animals_list.end(), rng);
-
-        DA::Sort(&animals_list, [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
-            return a->species_.weapons_ < b->species_.weapons_;
-            });
-
-        DA::Sort(&animals_list, [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
-            return a->species_.size_ < b->species_.size_;
-            });
-
-        DA::Sort(&animals_list, [](shared_ptr<Animal> a, shared_ptr<Animal> b) {
-            return a->species_.speed_ > b->species_.speed_;
-            });
+        DA::Sort(&animals_list, Quicker2);
     }
 
-    void perform_move(shared_ptr<Animal> animal) {
-        vector<SquareInfo> vision = get_vision(animal), moves = vision;
-        DA::Filter(&moves, [](const SquareInfo& si) { return si.eligible_move; });
+    void perform_move(shared_ptr<Animal> animal, Workspace_& work)
+    {
+        get_vision(animal, &work.moves_);
+        auto start = work.moves_.begin(), end = work.moves_.end();
 
+        auto stop = remove_if(start, end, [](const SquareInfo& si) { return !si.eligible_move; });
         // require best distance from threat.
-        if (moves.size() > 1)
+        if (stop > start + 1)
         {
-            auto pBest = DA::Most(moves, [](const SquareInfo& si) { return si.distance_from_threat; });
+            auto pBest = DA::Most(start, stop, [](const SquareInfo& si) { return si.distance_from_threat; });
             double best_threat_dist = min(pBest->distance_from_threat, double(2.1)); // we accept anything >2
 
-            DA::Filter(&moves, [=](const SquareInfo& si) { return si.distance_from_threat >= best_threat_dist; });
-        }
+            stop = remove_if(start, stop, [=](const SquareInfo& si) { return si.distance_from_threat < best_threat_dist; });
 
-        // at equality, require largest killable prey
-        if (moves.size() > 1)
-        {
-            double bestPrey = DA::MostVal(moves, [](const SquareInfo& si) { return si.largest_visible_prey; });
-            DA::Filter(&moves, [=](const SquareInfo& si) { return si.largest_visible_prey >= bestPrey; });
-        }
+            // at equality, require largest killable prey
+            if (stop > start + 1)
+            {
+                double bestPrey = DA::MostVal(start, stop, [](const SquareInfo& si) { return si.largest_visible_prey; });
+                stop = remove_if(start, stop, [=](const SquareInfo& si) { return si.largest_visible_prey < bestPrey; });
 
-        // at equality, require best food available
-        if (moves.size() > 1)
-        {
-            double bestFood = DA::MostVal(moves, [](const SquareInfo& si) { return si.best_food; });
-            DA::Filter(&moves, [=](const SquareInfo& si) { return si.best_food >= bestFood; });
-        }
+                // at equality, require best food available
+                if (stop > start + 1)
+                {
+                    double bestFood = DA::MostVal(start, stop, [](const SquareInfo& si) { return si.best_food; });
+                    stop = remove_if(start, stop, [=](const SquareInfo& si) { return si.best_food < bestFood; });
 
-        // if no food is available and multiple squares under consideration, look for chaseable prey.
-        if (moves.size() > 1 && moves.front().best_food == 0)
-        {
-            double bestPrey = DA::MostVal(moves, [](const SquareInfo& si) { return si.largest_chaseable_prey; });
+                    // if no food is available and multiple squares under consideration, look for chaseable prey.
+                    if (stop > start + 1 && start->best_food == 0)
+                    {
+                        double bestPrey = DA::MostVal(start, stop, [](const SquareInfo& si) { return si.largest_chaseable_prey; });
 
-            vector<Coords> chase_locations;
-            for (const SquareInfo& si : vision) {
-                if (si.largest_chaseable_prey >= bestPrey) {
-                    chase_locations.push_back(si.coords_);
+                        for (const SquareInfo& si : work.moves_) {
+                            if (si.largest_chaseable_prey >= bestPrey) {
+                                work.chase_.push_back(si.coords_);
+                            }
+                        }
+
+                        auto negDist = [&](const SquareInfo& si) { return -si.coords_.closest_dist_to(work.chase_); };
+                        double minDist = -DA::MostVal(start, stop, negDist);
+                        stop = remove_if(start, stop, [&](const SquareInfo& si) { return -negDist(si) > minDist; });
+                    }
                 }
             }
-
-            auto negDist = [&](const SquareInfo& si) { return -si.coords_.closest_dist_to(chase_locations); };
-            double minDist = -DA::MostVal(moves, negDist);
-            DA::Filter(&moves, [&](const SquareInfo& si) { return negDist(si) >= -minDist; });
         }
-        auto pMove = moves.begin();
-        if (moves.size() > 1)
-            pMove += random_int(0, static_cast<int>(moves.size()) - 1);
+        auto pMove = start;
+        if (stop > start + 1)
+            pMove += random_int(0, static_cast<int>(stop - start) - 1);
         move_animal(animal, pMove->coords_);
     }
 
     void perform_fight(shared_ptr<Animal> animal)
     {
         const Square& square = get_square_at_coords(animal->coords_);
-        double largest_prey = 0;
-        shared_ptr<Animal> to_eat;
+        shared_ptr<Animal> prey;
 
-        for (auto [id, target] : square.animals_present) {
-            if (target->alive_ && predation_map[animal->species_.id_][target->species_.id_] && target->species_.size_ > largest_prey)
+        for (const auto& target : square.animals_present)
+        {
+            if (target->alive_ && predation_map[animal->species_->id_][target->species_->id_])
             {
-                largest_prey = target->species_.size_;
-                to_eat = target;
+                if (!prey || target->species_->size_ > prey->species_->size_)
+                    prey = target;
             }
         }
 
-        if (largest_prey > 0) {
-            kill_animal(to_eat, animal->species_.id_);
-        }
+        if (prey)
+            kill_animal(prey, animal->species_->id_);
     }
 
     void perform_feed(shared_ptr<Animal> animal)
     {
         const Square& square = get_square_at_coords(animal->coords_);
         for (int food_id = 0; food_id < constants::num_foods; food_id++) {
-            if ((square.foods_present[food_id] > 0) && (animal->species_.edibles_[food_id] == true)) {
+            if ((square.foods_present[food_id] > 0) && (animal->species_->edibles_[food_id] == true)) {
                 contents[animal->coords_.row][animal->coords_.col].foods_present[food_id]--;
                 animal->reserves_ += constants::food_nutritions[food_id];
                 return;
@@ -678,11 +743,11 @@ public:
         }
     }
 
-    void perform_action(const shared_ptr<Animal>& animal)
+    void perform_action(const shared_ptr<Animal>& animal, Workspace_& work)
     {
         if (animal->alive_)
         {
-            perform_move(animal);
+            perform_move(animal, work);
             perform_fight(animal);
             perform_feed(animal);
         }
@@ -718,35 +783,49 @@ public:
 
     void exec_actions() {
         sort_animals_by_initiative();
-        set<int> speeds = get_active_speeds();
-        for (shared_ptr<Animal> a : animals_list) {
-            if (speeds.count(a->species_.speed_)) {
-                perform_action(a);
+        const auto& active = active_speeds[rounds_elapsed % constants::max_speed];
+        Workspace_ work;
+        for (shared_ptr<Animal>& a : animals_list)
+        {
+            if (active[a->species_->speed_])
+            {
+                work.Reset();
+                perform_action(a, work);
                 a->exec_hunger();
             }
         }
     }
 
-    void exec_breeding_starvation() {
-        vector<shared_ptr<Animal>> to_breed = {};
-        for (shared_ptr<Animal> a : animals_list) {
+    void exec_breeding_starvation()
+    {
+        size_t n = animals_list.size();
+        for (size_t ia = 0; ia < n; ++ia)
+        {
+            shared_ptr<Animal>& a = animals_list[ia];
             if (a->reserves_ <= 0)
                 kill_animal(a, -1);
-            else if (a->reserves_ >= constants::reproduction_reserves_ratio * a->species_.size_)
-                to_breed.push_back(a);
-        }
-        for (shared_ptr<Animal> breeder : to_breed) {
-            breed_animal(breeder);
+            else if (a->reserves_ >= constants::reproduction_reserves_ratio * a->species_->size_)
+                breed_animal(a);
         }
     }
 
-    void clear_dead_animals() {
-        DA::Filter(&animals_list, [&](auto a) { return a->alive_; });
-        for (vector<Square>& row : contents) {
-            for (Square& square : row) {
-                square.clear_dead_animals();
-            }
-        }
+    void clear_dead_animals()
+    {
+        auto stop = remove_if(animals_list.begin(), animals_list.end(), [&](auto& e) {return !e->alive_; });
+        auto endExisting = remove_if(stop, animals_list.end(), [&](auto& e) {return !e; });
+        auto nrOld = recycle.size();
+        recycle.insert(recycle.end(), stop, endExisting);
+        animals_list.erase(stop, animals_list.end());
+
+        // mark which squares contain recycled animals
+        vector<char> marked(height * width, false);
+        for (auto ii = nrOld; ii < recycle.size(); ++ii)
+            marked[recycle[ii]->coords_.row + height * recycle[ii]->coords_.col] = '1';
+
+        for (int iRow = 0; iRow < height; ++iRow)
+            for (int iCol = 0; iCol < width; ++iCol)
+                if (marked[iRow + height * iCol])
+                    contents[iRow][iCol].clear_dead_animals();
     }
 
     void exec_round() {
@@ -756,7 +835,7 @@ public:
         exec_breeding_starvation();
         clear_dead_animals();
         rounds_elapsed++;
-        if (rounds_elapsed % 1000 == 0) {
+        if (rounds_elapsed % 500 == 0) {
             print_status();
         }
         if (rounds_elapsed < 1e5) {
@@ -793,7 +872,7 @@ public:
         cout << total_animals << " alive, current metabolic runrate is at " << (runrate_used * 100) / get_capacity() << "% of capacity\n";
 
         for (int i = 0; i < species_defined; i++) {
-            if (counts[i] >= 20) {
+            if (counts[i] >= 5) {
                 cout << species_list[i] << " has population " << counts[i] << "\n";
             }
         }
@@ -801,11 +880,11 @@ public:
         for (int i = 0; i < constants::num_foods; i++) {
             cout << "Current abundance of " << constants::food_names[i] << " is " << abundances[i] << "\n";
         }
-        cout << "Since the last update " << num_recently_killed << " animals have been killed and " << num_recently_starved << " have starved\n";
+        cout << "Since the last update " << num_recently_killed << " animals have been killed"
+            " and " << num_recently_starved << " have starved\n";
+        latest_update = new_update;
         num_recently_killed = 0;
         num_recently_starved = 0;
-
-        latest_update = new_update;
     }
 };
 
@@ -813,9 +892,15 @@ int main()
 {
     World my_world = World(500, 500);
     my_world.print_status();
+    auto t1 = chrono::high_resolution_clock::now();
 
-    for (int i = 0; i < 1e6; i++)
+    for (int i = 0; i < 100000; i++)
         my_world.exec_round();
+
+    auto t2 = chrono::high_resolution_clock::now();
+    cout << "simulation took "
+        << chrono::duration_cast<chrono::milliseconds>(t2 - t1).count()
+        << " milliseconds\n";
 
 }
 
