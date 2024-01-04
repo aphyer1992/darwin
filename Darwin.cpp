@@ -516,8 +516,8 @@ public:
             for (int b = 0; b < constants::num_species; b++)
             {
                 const Species& s_b = species_list[b];
-                predation_map[a][b] = s_a.weapons_ > s_b.weapons_ + s_b.armor_;
-                pursuit_map[a][b] = predation_map[a][b] && s_a.speed_ > s_b.speed_;
+                predation_map[a][b] = s_a.weapons_ > (s_b.weapons_ + s_b.armor_);
+                pursuit_map[a][b] = predation_map[a][b] && (s_a.speed_ > s_b.speed_);
             }
         }
     }
@@ -835,10 +835,10 @@ public:
         exec_breeding_starvation();
         clear_dead_animals();
         rounds_elapsed++;
-        if (rounds_elapsed % 500 == 0) {
+        if (rounds_elapsed % 1000 == 0) {
             print_status();
         }
-        if (rounds_elapsed < 1e5) {
+        if (rounds_elapsed < 2e5) {
             airdrop_animals(1e-5);
         }
     }
@@ -870,12 +870,16 @@ public:
             total_animals += counts[i];
         }
         cout << total_animals << " alive, current metabolic runrate is at " << (runrate_used * 100) / get_capacity() << "% of capacity\n";
-
+        int low_pops = 0;
         for (int i = 0; i < species_defined; i++) {
             if (counts[i] >= 5) {
                 cout << species_list[i] << " has population " << counts[i] << "\n";
             }
+            else if (counts[i] > 0) {
+                low_pops++;
+            }
         }
+        cout << "Plus " << low_pops << " other animals with small populations.\n";
         auto abundances = food_abundances();
         for (int i = 0; i < constants::num_foods; i++) {
             cout << "Current abundance of " << constants::food_names[i] << " is " << abundances[i] << "\n";
@@ -894,7 +898,7 @@ int main()
     my_world.print_status();
     auto t1 = chrono::high_resolution_clock::now();
 
-    for (int i = 0; i < 100000; i++)
+    for (int i = 0; i < 1e6; i++)
         my_world.exec_round();
 
     auto t2 = chrono::high_resolution_clock::now();
