@@ -1197,9 +1197,6 @@ public:
             capacities[b] = get_capacity(b);
         }
         capacities[num_biomes] = total_capacity;
-        for (int b = 0; b < num_biomes + 1; b++) {
-            cout << b << ": " << capacities[b] << "\n";
-        }
 
         cout << total_animals << " alive, current metabolic runrate is at " << (runrate_used * 100) / total_capacity << "% of capacity\n";
         int low_pops = 0;
