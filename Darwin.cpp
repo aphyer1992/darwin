@@ -12,7 +12,7 @@
 #include <memory>
 #include <chrono>
 #include <ctime>
-
+#include <fstream>
 #undef INFINITY
 using namespace std;
 
@@ -104,35 +104,36 @@ namespace constants
     constexpr double bone_nutrition = 0.5;
     constexpr double offal_nutrition = 0.25;
     constexpr double fruit_nutrition = 0.75;
-    constexpr double grass_nutrition = 0.33;
+    constexpr double grass_nutrition = 0.35;
     constexpr double seeds_nutrition = 0.15;
 
     constexpr int num_foods = 6;
     // IMPORTANT: MUST BE SORTED DESCENDING BY NUTRITION!
     const string food_names[num_foods] = { "Meat", "Fruit", "Bone", "Grass", "Offal", "Seeds" };
     constexpr array<double, num_foods> food_nutritions = { meat_nutrition, fruit_nutrition, bone_nutrition, grass_nutrition, offal_nutrition, seeds_nutrition };
-    constexpr array<double, num_foods> food_costs = { 1, 4, 5, 6, 3, 2 };
+    constexpr array<double, num_foods> food_costs = { 2, 4, 6, 6, 4, 2 };
 
     constexpr int num_biomes = 3;
     constexpr array<string, num_biomes> biome_names = { "Tundra", "Grassland", "Jungle" };
 
-    constexpr array<double, num_foods> tundra_spawn = { 0, 0.00002, 0, 0.001, 0, 0.002 };
-    constexpr array<double, num_foods> plains_spawn = { 0, 0.0002, 0, 0.002, 0, 0.002 };
-    constexpr array<double, num_foods> jungle_spawn = { 0, 0.002, 0, 0.003, 0, 0.002 };
-    constexpr array<array<double, num_foods>, num_biomes> food_spawn_rates = {tundra_spawn, plains_spawn, jungle_spawn};
+    constexpr array<double, num_foods> tundra_spawn = { 0, 0.0001333, 0, 0.00166, 0, 0.0033 };
+    constexpr array<double, num_foods> plains_spawn = { 0, 0.000666, 0, 0.00333, 0, 0.0033 };
+    constexpr array<double, num_foods> jungle_spawn = { 0, 0.00333, 0, 0.0050, 0, 0.0033 };
+    constexpr array<array<double, num_foods>, num_biomes> food_spawn_rates = { tundra_spawn, plains_spawn, jungle_spawn };
     constexpr array<double, num_foods> food_drop_rates = { 0.5, 0, 0.3, 0, 0.2, 0 };
 
     constexpr int max_speed = 10;
     constexpr int max_size = 1000;
     constexpr int max_weapons_armor = 10;
 
-    constexpr int num_species = 600;
+    constexpr int num_species = 600; // past about here we get strange over-memory-usage-errors.
 
     constexpr double starting_reserves_ratio = 0.5;
     constexpr double reproduction_reserves_ratio = 2.0;
     constexpr double metabolic_rate = 0.01;
 
-    constexpr array<array<int, 2>, 5> dist_01_neighbors = { { {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0} } }; // why do i need a third brace?
+    constexpr array<int, 2> dist_0 = { 0,0 };
+    constexpr array<array<int, 2>, 4> dist_1_neighbors = { { {0,1}, {0,-1}, {1,0}, {-1,0} } }; // why do i need a third brace?
     constexpr array<array<int, 2>, 8> dist_2_neighbors = { { {0,2}, {0,-2}, {2,0}, {-2,0}, {1,1}, {1,-1}, {-1,1}, {-1,-1} } };
 
 }
@@ -144,13 +145,13 @@ int triangle(int n)
 
 double calc_size(int weapons, int armor, int speed, array<bool, constants::num_foods> edibles, bool camo, bool flight)
 {
-    double size = (5 * weapons) + (2 * armor) + (1 * speed);
+    double size = (5 * weapons) + (3 * armor) + (1 * speed);
 
     for (int i = 0; i < constants::num_foods; i++) {
         size += edibles[i] ? constants::food_costs[i] : 0;
     }
-    int multiplier = 1 + (camo ? 1 : 0) + (flight ? 1 : 0);
-    size *= multiplier;
+    size *= (camo ? 2 : 1);
+    size *= (flight ? 1.5 : 1);
     return size;
 }
 
@@ -273,7 +274,7 @@ public:
         , reserves_(species->size_* constants::starting_reserves_ratio)
         , id_(id)
         , alive_(true)
-        , airborne_ (species->flight_) // fliers get a turn's grace
+        , airborne_(species->flight_) // fliers get a turn's grace
     {   }
 
     void exec_hunger() {
@@ -357,6 +358,7 @@ public:
 
 struct SquareInfo
 {
+    double distance;
     double best_food;
     double largest_visible_prey;
     double largest_chaseable_prey;
@@ -411,10 +413,12 @@ constexpr array<array<bool, constants::max_speed + 1>, constants::max_speed> mak
             retval[round_no][speed] = ((speed * round_no) % constants::max_speed) + speed >= constants::max_speed;
         retval[round_no][constants::max_speed] = true;
     }
+
+
     return retval;
 }
 
-constexpr array<array<bool, constants::max_speed + 1>, constants::max_speed> active_speeds = make_active_speeds();
+array<array<bool, constants::max_speed + 1>, constants::max_speed> active_speeds = make_active_speeds();
 
 class World {
 public:
@@ -437,8 +441,6 @@ public:
     int gate_min_col;
     int gate_max_col;
     array<Species, constants::num_species> species_list;
-    array<array<bool, constants::num_species>, constants::num_species> predation_map;
-    array<array<bool, constants::num_species>, constants::num_species> pursuit_map;
     mt19937 rng;
     vector<vector<Square>> contents;
     vector<shared_ptr<Animal>> animals_list, recycle;
@@ -456,16 +458,17 @@ public:
         , biome_map_width(biome_map_width_in)
         , biome_map_height(biome_map_height_in)
         , gate_width(gate_width_in)
-        , biome_size(biome_width * biome_height)
-        , width(biome_map_width * biome_width)
-        , height(biome_map_height * biome_height)
-        , num_biomes(biome_map_width * biome_map_height)
-        , size(width * height)
+        , biome_size(biome_width* biome_height)
+        , width(biome_map_width* biome_width)
+        , height(biome_map_height* biome_height)
+        , num_biomes(biome_map_width* biome_map_height)
+        , size(width* height)
         , species_defined(0)
         , animals_created(0)
         , rounds_elapsed(0)
         , focus_animal_active(false)
     {
+        rng.seed(234567);
         // many things fail to define above?
         width = biome_map_width * biome_width;
         height = biome_map_height * biome_height;
@@ -480,7 +483,6 @@ public:
         setup_fixed_species();
         setup_random_species();
         sort_species_by_size();
-        create_predation_maps();
         open_gates();
         create_contents();
         airdrop_animals();
@@ -488,7 +490,7 @@ public:
         latest_update = chrono::system_clock::now();
     };
 
-    array<int,2> get_biome_offset(int biome) {
+    array<int, 2> get_biome_offset(int biome) {
         array<int, 2> offset = { biome_height * (biome / biome_map_width), biome_width * (biome % biome_map_width) };
         return(offset);
     }
@@ -542,7 +544,7 @@ public:
         edibles[0] = true; // these should eat meat
         add_species(1, 0, 1, edibles, true, false, name_prefix + " Flytrap");
         add_species(1, 0, 3, edibles, true, false, name_prefix + " Spider");
-        add_species(1, 0, 3, edibles, false, true, name_prefix + " Kestrel");
+        add_species(1, 0, 5, edibles, false, true, name_prefix + " Kestrel");
         add_species(2, 0, 5, edibles, false, false, name_prefix + " Cat");
     }
 
@@ -559,9 +561,10 @@ public:
         setup_fixed_herbivores(multiplant_edibles, "Multiplant");
 
         constexpr array <bool, constants::num_foods> meat_only = { true, false, false, false, false, false };
-        for (int i = 1; i <= 10; i++)
+        for (int i = 1; i <= 9; i++)
         {
             add_species(i, 0, 1, meat_only, true, false, "Lurker " + to_string(i));
+            if(i <= 5) { add_species(i, 0, 1, meat_only, true, true, "Skylurker " + to_string(i)); }
         }
 
         for (int i = 0; i < constants::num_foods; i++)
@@ -571,11 +574,11 @@ public:
             for (int j = 2; j < 10; j++)
             {
                 add_species(j, 0, j, temp_edibles, false, false, constants::food_names[i] + " Hunter " + to_string(j));
-                if (j < 7) {
-                    add_species(j - 1, 0, j, temp_edibles, false, true, constants::food_names[i] + " Hawk " + to_string(j));
+                if (j < 9) {
+                    add_species(j / 2, 0, j, temp_edibles, false, true, constants::food_names[i] + " Hawk " + to_string(j));
                 }
                 if (j > 5) {
-                    add_species(j-1, 1, 4, temp_edibles, false, false, constants::food_names[i] + " Antilurker " + to_string(j));
+                    add_species(j, 0, 2 + (j%2), temp_edibles, false, false, constants::food_names[i] + " Antilurker " + to_string(j));
                 }
             }
         }
@@ -585,20 +588,40 @@ public:
     {
         while (species_defined < constants::num_species)
         {
-            int weapons = random_int(-2, constants::max_weapons_armor);
+            bool camo = random_bool(1.0 / 3.0);
+            bool flight = random_bool(1.0 / 3.0);
+            int weapons = random_int(-5, constants::max_weapons_armor);
             weapons = max(0, weapons);
-            int armor = random_int(0, constants::max_weapons_armor);
+
+            int armor = random_int(-4, constants::max_weapons_armor + 1);
+            if (flight) { armor = min(armor, random_int(-4, constants::max_weapons_armor + 1)); } // armor worse on fliers
             armor = armor - weapons;
             armor = max(0, armor);
-            int speed = random_int(1, constants::max_speed);
-            bool camo = random_bool(1.0 / 4.0);
-            bool flight = random_bool(1.0 / 4.0);
+            armor = min(armor, constants::max_weapons_armor - weapons);
+
+            int speed = random_int(-2, constants::max_speed + 1);
+            if (camo) { speed = min(speed, random_int(-2, constants::max_speed + 1)); } // speed worse with camo
+            speed = max(1, speed);
+            speed = min(constants::max_speed, speed);
             array<bool, constants::num_foods> edibles;
+            
             for (bool& e : edibles)
             {
-                e = random_bool(1.0 / 3.0);
+                e = random_bool(1.0 / 2.5);
             }
-            add_species(weapons, armor, speed, edibles, camo, flight, "Random Animal");
+
+            bool viable = false;
+            double expected_metabolism = calc_size(weapons, armor, speed, edibles, camo, flight) * constants::metabolic_rate;
+            for (int i = 0; i < constants::num_foods; i++) {
+                if ((edibles[i]) and constants::food_nutritions[i] > expected_metabolism) { viable = true; }
+            }
+            if (viable) {
+                bool matched = false;
+                for (int s = 0; s < species_defined; s++) {
+                    if (species_list[s].weapons_ == weapons and species_list[s].armor_ == armor and species_list[s].speed_ == speed and species_list[s].edibles_ == edibles and species_list[s].camo_ == camo and species_list[s].flight_ == flight) { matched = true; }
+                }
+                if(!matched) { add_species(weapons, armor, speed, edibles, camo, flight, "Random Animal"); }                
+            }
         }
     }
 
@@ -612,25 +635,19 @@ public:
         }
     }
 
-    void create_predation_maps()
-    {
-        cout << "Creating Predation Maps\n";
+    bool will_predate(const Species* s_a, const Species* s_b) {
+        return(s_a->weapons_ > (s_b->weapons_ + s_b->armor_));
+    }
 
-        for (int a = 0; a < constants::num_species; a++)
-        {
-            const Species& s_a = species_list[a];
-            for (int b = 0; b < constants::num_species; b++)
-            {
-                const Species& s_b = species_list[b];
-                predation_map[a][b] = s_a.weapons_ > (s_b.weapons_ + s_b.armor_);
-                if ((s_a.flight_ == false) and (s_b.flight_ == true)) {  // ground will only chase flying if your speed is enough you could catch it on the ground.
-                    pursuit_map[a][b] = predation_map[a][b] && (s_a.speed_ > (2*s_b.speed_));
-                }
-                else {
-                    pursuit_map[a][b] = predation_map[a][b] && (s_a.speed_ > s_b.speed_);
-                }          
-            }
+    bool will_pursue(const Species* s_a, const Species* s_b) {
+        if (!will_predate(s_a, s_b)) {return(false);}
+        if ((s_a->flight_ == false) and (s_b->flight_ == true)) {  // ground will only chase flying if your speed is enough you could catch it on the ground.
+            return( (s_a->speed_ > (2 * s_b->speed_)));
         }
+        else {
+            return( (s_a->speed_ > s_b->speed_) );
+        }
+
     }
 
     inline bool is_on_map(Coords coords) {
@@ -653,7 +670,7 @@ public:
         int row = random_int(0, biome_height - 1);
         int col = random_int(0, biome_width - 1);
 
-        array<int,2> offset = get_biome_offset(biome);
+        array<int, 2> offset = get_biome_offset(biome);
         row = row + offset[0];
         col = col + offset[1];
         return(Coords(row, col));
@@ -688,7 +705,7 @@ public:
             for (const Species& species : species_list) {
                 int num_to_airdrop = randomize_to_int(capacity / (species_defined * species.runrate_));
                 for (int i = 0; i < num_to_airdrop; i++) {
-                    create_animal(&species); //, random_location_in_biome(biome));
+                    create_animal(&species, random_location_in_biome(biome));
                 }
             }
         }
@@ -740,7 +757,7 @@ public:
     }
 
     bool in_same_biome(Coords a, Coords b) {
-        if ( (a.col - (a.col % biome_width)) != (b.col - (b.col % biome_width)) ){ return(false); }
+        if ((a.col - (a.col % biome_width)) != (b.col - (b.col % biome_width))) { return(false); }
         if ((a.row - (a.row % biome_height)) != (b.row - (b.row % biome_height))) { return(false); }
         return(true);
     }
@@ -763,10 +780,11 @@ public:
         create_animal(animal->species_, animal->coords_);
     }
 
-    SquareInfo get_square_info(shared_ptr<Animal> animal, Coords coords, bool is_within_1) {
+    SquareInfo get_square_info(shared_ptr<Animal> animal, Coords coords, int distance) {
         Square& square = get_square_at_coords(coords);
         SquareInfo info(coords);
-        info.eligible_move = is_within_1;
+        info.distance = distance;
+        info.eligible_move = distance <= 1 ? true : false;
         info.visible_threat = false;
         info.largest_visible_prey = 0;
         info.largest_chaseable_prey = 0;
@@ -775,14 +793,14 @@ public:
         {
             if (!seen_animal->alive_)
                 continue;
-            if (is_within_1 || !seen_animal->species_->camo_)
+            if (distance <= 1 || !seen_animal->species_->camo_)
             {
-                if (predation_map[seen_animal->species_->id_][animal->species_->id_]) {
+                if (will_predate(seen_animal->species_, animal->species_)) {
                     info.visible_threat = true;
                 }
-                if ((predation_map[animal->species_->id_][seen_animal->species_->id_]) and ((animal->species_->flight_) or (seen_animal->airborne_ == false))) {
+                if ((will_predate(animal->species_, seen_animal->species_)) and ((animal->species_->flight_) or (seen_animal->airborne_ == false))) {
                     info.largest_visible_prey = max(info.largest_visible_prey, seen_animal->species_->size_);
-                    if (pursuit_map[animal->species_->id_][seen_animal->species_->id_]) {
+                    if (will_pursue(animal->species_, seen_animal->species_)) {
                         info.largest_chaseable_prey = max(info.largest_visible_prey, seen_animal->species_->size_);
                     }
                 }
@@ -790,7 +808,7 @@ public:
         }
 
         info.best_food = 0;
-        if (is_within_1) {
+        if (distance <= 1) {
             for (int food_id = 0; food_id < constants::num_foods; food_id++) {
                 if (animal->species_->edibles_[food_id] && square.foods_present[food_id])
                     info.best_food = max(info.best_food, constants::food_nutritions[food_id]);
@@ -802,15 +820,17 @@ public:
 
     void get_vision(shared_ptr<Animal> animal, vector<SquareInfo>* vision)
     {
-        for (const array<int, 2>&m : constants::dist_01_neighbors) {
+        vision->push_back(get_square_info(animal, animal->coords_, 0));
+
+        for (const array<int, 2>&m : constants::dist_1_neighbors) {
             Coords new_coords = animal->coords_ + m;
             if (is_on_map(new_coords) && squares_can_see(animal->coords_, new_coords))
-                vision->push_back(get_square_info(animal, new_coords, true));
+                vision->push_back(get_square_info(animal, new_coords, 1));
         }
         for (const array<int, 2>&m : constants::dist_2_neighbors) {
             Coords new_coords = animal->coords_ + m;
             if (is_on_map(new_coords) && squares_can_see(animal->coords_, new_coords))
-                vision->push_back(get_square_info(animal, new_coords, false));
+                vision->push_back(get_square_info(animal, new_coords, 2));
         }
         vector<Coords> visible_threats;
         for (const SquareInfo& temp_info : *vision) {
@@ -818,7 +838,7 @@ public:
                 visible_threats.push_back(temp_info.coords_);
             }
         }
-        
+
         for (SquareInfo& temp_info : *vision) {
             temp_info.distance_from_threat = temp_info.coords_.closest_dist_to(visible_threats);
         }
@@ -879,7 +899,7 @@ public:
             stop = remove_if(start, stop, [=](const SquareInfo& si) { return si.distance_from_threat < best_threat_dist; });
 
             if (verbose) { cout << "Found " << stop - start << " between stop and start after tracking threat\n"; }
-            
+
             // at equality, require largest killable prey
             if (stop > start + 1)
             {
@@ -923,20 +943,26 @@ public:
                         stop = remove_if(start, stop, [&](const SquareInfo& si) { return -negDist(si) > minDist; });
 
                         if (verbose) { cout << "Found " << stop - start << " between stop and start after tracking chaseable prey\n"; }
-                        // if multiple squares under consideration, look for distance from the last predator we saw.
-                        /*if (stop > start + 1)
+                        if (stop > start + 1)
                         {
+                            double bestDist;
+                            if (bestFood >= animal->species_->size_ * constants::metabolic_rate) {  // if we found food adequate to support us, stay still
 
-                            auto pBest = DA::Most(start, stop, [](const SquareInfo& si) { return si.distance_from_last_threat; });
-                            double best_threat_dist = pBest->distance_from_last_threat;
-                            stop = remove_if(start, stop, [=](const SquareInfo& si) { return si.distance_from_last_threat < best_threat_dist; });
-                        }*/
+                                bestDist = -1 * (DA::MostVal(start, stop, [](const SquareInfo& si) { return (-1 * si.distance); }));
+                            }
+                            else { // if no, move
+                                bestDist = 1 * (DA::MostVal(start, stop, [](const SquareInfo& si) { return (1 * si.distance); }));
+                            }
+                            stop = remove_if(start, stop, [=](const SquareInfo& si) { return si.distance != bestDist; });
+                        }
                     }
                 }
             }
         }
 
         if (verbose) { cout << "Found " << stop - start << " between stop and start after all steps\n"; }
+
+        if (stop <= start) { cout << "NO MOVE?";  throw(stop); };
         auto pMove = start;
         if (stop > start + 1)
             pMove += random_int(0, static_cast<int>(stop - start) - 1);
@@ -966,7 +992,7 @@ public:
 
         for (const auto& target : square.animals_present)
         {
-            if (target->alive_ && predation_map[animal->species_->id_][target->species_->id_] && (animal->species_->flight_ or (target->airborne_ == false)))
+            if (target->alive_ && will_predate(animal->species_, target->species_) && (animal->species_->flight_ or (target->airborne_ == false)))
             {
                 if (!prey || target->species_->size_ > prey->species_->size_)
                     prey = target;
@@ -1018,10 +1044,11 @@ public:
     }
 
     void spawn_foods(int biome) {
+        if (rounds_elapsed % constants::max_speed > 0) { return; }
         auto spawn_rates = constants::food_spawn_rates[biome_list[biome]];
         array<int, 2> offset = get_biome_offset(biome);
         for (int i = 0; i < constants::num_foods; i++) {
-            int food_amount_spawned = randomize_to_int(biome_size * spawn_rates[i]);
+            int food_amount_spawned = randomize_to_int(biome_size * spawn_rates[i] * constants::max_speed);
             for (int j = 0; j < food_amount_spawned; j++) {
                 contents[random_int(0, height - 1) + offset[0]][random_int(0, height - 1) + offset[1]].foods_present[i]++;
             }
@@ -1091,7 +1118,7 @@ public:
             render_focus_area();
         }
         rounds_elapsed++;
-        if (rounds_elapsed % 1000 == 0) {
+        if (rounds_elapsed % 5000 == 0) {
             print_status();
         }
         if (rounds_elapsed < 2e5) {
@@ -1130,7 +1157,7 @@ public:
         string line_break = "";
         while (line_break.size() < screen_width) { line_break = line_break + "-"; }
         line_break = line_break + "\n";
-        
+
         out_string = out_string + line_break;
 
         for (int r = row_min; r <= row_max; r++) {
@@ -1165,7 +1192,7 @@ public:
         return(false);
     }
 
-    int render_focus_area(int radius=2) {
+    int render_focus_area(int radius = 2) {
         if (focus_animal->alive_ == false) {
             focus_animal_active = false;
             cout << "Focus animal has died";
@@ -1222,9 +1249,9 @@ public:
                 string biome_cell = std::format(" {} ({}{}, {:.2f}%)", counts[i][b], (change >= 0 ? "+" : "-"), abs(change), pct_cap * 100);
                 while (biome_cell.size() < cell_length) { biome_cell = biome_cell + " "; }
                 row_string = row_string + "|" + biome_cell;
-                if ((pct_cap * species_defined >= 1) and (counts[i][b] >= 10)) { show_row = true; }
+                if ((pct_cap * species_defined >= 2) and (counts[i][b] >= 10)) { show_row = true; }
             }
-            if(show_row) {
+            if (show_row) {
                 cout << row_string << "\n";
             }
             else if (counts[i][num_biomes] > 0) {
@@ -1255,8 +1282,8 @@ public:
 
 int main()
 {
-    cout << "v1.11" << "\n";
-    World my_world = World(1000, 1000, 3, 1, { 0, 1, 2 }, 2);
+    cout << "v1.16" << "\n";
+    World my_world = World(600, 600, 3, 1, { 0, 1, 2 }, 2);
 
     for (int b = 0; b < my_world.num_biomes; b++) {
         auto o = my_world.get_biome_offset(b);
@@ -1266,7 +1293,7 @@ int main()
     my_world.print_status();
     auto t1 = chrono::high_resolution_clock::now();
 
-    for (int i = 0; i < 3e6; i++) {
+    for (int i = 0; i < 5e6; i++) {
         my_world.exec_round();
         //if (my_world.rounds_elapsed >= 136900) { // hunting a specific incident
         //    my_world.render_area(450,454,268, 272);
