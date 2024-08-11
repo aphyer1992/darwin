@@ -1,0 +1,7 @@
+﻿  Darwin.cpp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+C:\Users\hyera\source\repos\Darwin\Darwin.cpp(1209): warning C4715: 'World::render_focus_area': not all control paths return a value
+  All 1779 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  Darwin.vcxproj -> C:\Users\hyera\source\repos\Darwin\x64\Release\Darwin.exe
